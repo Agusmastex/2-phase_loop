@@ -37,6 +37,12 @@ Al hallar la caída de presión con Vz dada para flujo forzado ascendente, esta 
 
 Calcula el perfil de temperaturas transitorio y la evolución de Vz en el tiempo con Δp dada. Utiliza la ecuación de movimiento promediada en el espacio. Cambia la matriz de diferenciación cuando el flujo se invierte. Ejemplos: flow_reversal.gif
 
+1 - Utiliza el esquema prender/apagar bomba, donde cuando la bomba está apagada, ΔP = 0.
+2 - Utiliza ΔP = ρgL constante.
+
+ Se descubrió que tener una diferencia de presión nula con bomba apagada es no-físico, puesto que la presión debe por lo menos ser la hidrostática para soportar al fluido.
+
+
 To do: Construir una función que tome los parámetros importantes (th,tf,Δp,β) y genere un gif. Loopear a lo largo de los valores de β (o Δp, o th) para encontrar el valor crítico por encima del cual el flujo no se invierte y se mantiene por convección natural. (Obs: este valor está cerca de β = 0.03 para los valores de prueba utilizados)
 
 # ODE Solvers
