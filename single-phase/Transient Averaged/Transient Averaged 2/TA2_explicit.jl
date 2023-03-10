@@ -13,8 +13,8 @@ Vz = 2.0          # m/s
 L  = 10.0          # m                
 Lh = 0.2*L        # m
 
-# β  = 210e-6	      # K⁻¹ 
-β  = 0.01         # K⁻¹ 
+β  = 210e-6	      # K⁻¹ 
+# β  = 0.01         # K⁻¹ 
 T0 = 25.0		  # ºC
 g  = 9.8		  # m/sꜝ
 f  = 0.01         # 1
@@ -30,7 +30,7 @@ n  = length(z) - 1
 Q_tilde = Q/(ρ0*Cp*A*Lh)
 Q_vec   = [zi < Lh ? Q_tilde : 0 for zi in z]
 
-tf = 8.0
+tf = 4*60.0
 th = 0.5
 # th = 2*tf
 dt = 0.005
@@ -47,12 +47,12 @@ function D_f(vz)
 	end
 	return D_m
 end
-v_old =  0.0
+v_old =  0.1
 v  = [v_old]
 T  = T0*ones(n+1)
 
 Tlast = T0
-Tmax = 120
+# Tmax = 300
 
 for j in 1:nt-1
 	global Tlast, v_old, T
@@ -68,12 +68,12 @@ for j in 1:nt-1
 	end
 	
 	T_avg = integrate(z,T)/L
-	v_new = v_old + dt*( - 0.25*f*v_old*abs(v_old) - g*β*(T_avg - T0))
+	v_new = v_old + dt*( - 0.25*f*v_old*abs(v_old) + g*β*(T_avg - T0))
 	push!(v,v_new)
 	v_old = v_new
 
-	if j % 5 == 0 # && t[j] > 10
-		p1 = plot(z,T, title="t = $(t[j])", ylim = (T0 - 1, Tmax + 1))
+	if j % 40 == 0  && t[j] > 120 && j < -1
+		p1 = plot(z,T, title="t = $(t[j])")#, ylim = (T0 - 1, Tmax + 1))
 		p2 = plot(t[1:j+1], v)
 	    p3 = plot(p1, p2, layout=(2,1))
 		display(p3)
@@ -81,5 +81,4 @@ for j in 1:nt-1
 
 end
 
-# sleep(2)
-# plot(t,v[1:end-1])
+plot(t,v)
