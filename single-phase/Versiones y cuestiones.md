@@ -27,9 +27,9 @@ Cuando la malla es fina: se genera un frente de onda que pasa por encima de la t
 
 Se eliminó el término de Boussinesq para desacoplar las ecuaciones de energía y movimiento, de modo a estudiar mejor el método de resolución de la velocidad en estado transitorio. La velocidad inicial siempre es cero.
 
-PressureDriven 	- Se utilizó dp/dx = -ΔP/L constante  
+PressureDriven - Se utilizó dp/dx = -ΔP/L constante  
 FreeFall &emsp; &emsp;&emsp;- Se utilizó dp/dx = 0  
-OnOffPump &emsp; &nbsp;- Se utilizó dp/dx como una función escalón unitario
+OnOffPump&emsp;&emsp;- Se utilizó dp/dx como una función escalón unitario
 
 Al hallar la caída de presión con Vz dada para flujo forzado ascendente, esta ΔP es la caída de presión para la cual las velocidades de estado estacionario en flujo forzado ascendente y en caída libre son de igual magnitud. ¿Por qué?
 
