@@ -2,7 +2,7 @@ using Plots
 # using LinearAlgebra
 using DifferentialEquations
 
-Q  = 1.0  		# J/s
+Q  = 1.0    		# J/s
 Cp = 1996.0  		# J/kg K
 R  = 1.0/1000		# m
 A  = π*R^2   		# m^2
@@ -25,17 +25,12 @@ Q_hat(z) = z < Lh ? Q/(m*Cp*A*Lh) : 0
 # H[1]: Velocity
 # H[2]: Temperature
 
-F(H,p,z) = [ -dpdz/m - 0.025*f*H[1]/R,
-            Q_hat(z) + H[1]/(m*Cp)*dpdz]
+F(H,p,z) = Q_hat(z) + v0/(m*Cp)*dpdz
 
-prob = ODEProblem(F,[v0,T0],[0,L])
+prob = ODEProblem(F,T0,[0,L])
 sol = solve(prob, Rodas4())
 
 z = 0:0.01:L
-T = sol(z)[2,:]
-v = sol(z)[1,:]
+T = sol(z)
 
-p1 = plot(z,T)
-p2 = plot(z,v)
-
-p3 = plot(p1, p2, layout=(2,1))
+plot(z,T)
