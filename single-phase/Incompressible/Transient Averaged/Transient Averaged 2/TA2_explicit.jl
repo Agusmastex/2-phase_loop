@@ -30,7 +30,7 @@ n  = length(z) - 1
 Q_tilde = Q/(ρ0*Cp*A*Lh)
 Q_vec   = [zi < Lh ? Q_tilde : 0 for zi in z]
 
-tf = 4*60.0
+tf = 3*60.0
 th = 0.5
 # th = 2*tf
 dt = 0.005
