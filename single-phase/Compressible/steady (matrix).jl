@@ -2,33 +2,36 @@ using Plots
 using LinearAlgebra
 using DifferentialEquations
 
-Q  = 1000.0         # J/s
-Cp = 1996.0  		# J/kg K
-R  = 5.0/100		# m
-A  = π*R^2   		# m^2
-L  = 10.0    	 	# m                
-Lh = 0.5*L   		# m
+Q  = 1000.0         # J/s       Potencia disipada en la resistencia
+Cp = 1996.0  		# J/kg K    Capacidad calorífica a presión constante específica
+R₀ = 3.0/100		# m         Radio de la tubería
+A  = π*R₀^2   		# m^2       Área de sección transversal de la tubería
+L  = 10.0    	 	# m         Longitud de la tubería 
+Lh = 0.5*L   		# m         Longitud del tramo del calentador
 
-T0 = 110.0 + 273.15	# ºC
-g  = 9.8		 	# m/sꜝ
-# f  = 0.05   	    # 1
-f  = 3.0    	    # 1
-Δp = 0.0 	       	# Pa
+T0 = 110.0 + 273.15	# K         Temperatura de entrada, y de referencia para Boussinesq
+g  = 9.8		 	# m/s       Aceleración de la gravedad
+f  = 0.05   	    # 1         Factor de fricción de Darcy
+# f  = 3.0    	    # 1
 
 # Initial conditions
-P0 = 1e5
-v0 = 10.0			# m/s
+P0 = 5e5            # Pa        Presión de entrada
+v0 = 10.0			# m/s       Velocidad de entrada
 
-M  = 18e-3          # kg/mol
-Rg = 8.314
-Cp = Cp*M           # J/mol K
-Cv = Cp - Rg        # J/mol K
-ρ0 = P0*M/(Rg*T0) 			# kg/m³
-m  = ρ0*v0			# kg/s
+M  = 18e-3          # kg/mol    Masa molar del fluido
+Rg = 8.314          # J/mol k   Constante de los gases ideales
+Cp = Cp*M           # J/mol K   Capacidad calorífica a presión constante molar
+Cv = Cp - Rg        # J/mol K   Capacidad calorífica a volumen constante molar
+ρ0 = P0*M/(Rg*T0) 	# kg/m³     Densidad en la entrada
+m  = ρ0*v0			# kg/m²s    Densidad de flujo de masa 
 
 # Setup
 Q_hat(z) = z < Lh ? Q/(A*Lh) : 0
-S = [0 0; -0.025f*m/R 0]
+S = [0 0; -0.025f*m/R₀ 0]
+
+# ODE system written in matrix form:
+# M X' = b + S X
+# Where X = [Vz, P]
 
 function F(X,p,z)
     M = [Cp/Rg*X[2] Cv/Rg*X[1]; m 1]
@@ -45,13 +48,18 @@ z = 0:0.01:L
 v = sol(z)[1,:]
 P = sol(z)[2,:]
 T = M/(m*Rg) * (P.*v)
+ρ = m./v
 
-P = 1e-5*P
+P = P/100000
 T = T .- 273.15
 
-plot_1 = plot(z,T, title="T")
-plot_2 = plot(z,P, title="P")
-plot_3 = plot(z,v, title="Vz")
+variables = [T,P,v,ρ]
+variable_names = ["T", "P", "Vz", "ρ"]
+
+println("Flujo másico")
+display(m*A*1000)
+
+plots = [plot(z, quantity, title = quantity_title) for (quantity, quantity_title) in zip(variables, variable_names)]
+final_plot = plot(plots..., layout=(2,2), legend=false)
 
 
-final_plot = plot(plot_1, plot_2, plot_3, layout=(3,1))
