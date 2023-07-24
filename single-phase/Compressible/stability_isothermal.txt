@@ -1,0 +1,14 @@
+# Explicit
+a	dt	Stable
+4.0	1e-7 	Si
+5.0	1e-8	No
+5.0	5e-9 	No
+
+# Implicit
+a	dt	Stable
+3.5	1e-1	Si
+4.0	5e-3	No
+
+Las iteraciones de Newton-Raphson disminuyen a medida que se avanza en el tiempo (de 8 iteraciones a 1,2 iteraciones por cada paso de tiempo). (a=0,1,2) Esto parece suceder a medida que los perfiles se vuelven lineales.
+
+Con Cd=1, se requieren muchas mas iteraciones de Newton-Raphson por cada paso de tiempo (200 iteraciones), comparado con Cd=0.0001 (8 iteraciones).
