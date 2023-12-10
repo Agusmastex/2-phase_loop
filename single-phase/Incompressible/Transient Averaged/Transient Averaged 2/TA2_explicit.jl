@@ -1,7 +1,7 @@
 using Plots
 using ToeplitzMatrices
 using LinearAlgebra
-using DifferentialEquations
+# using DifferentialEquations
 using NumericalIntegration
 
 Q  = 1000.0       # J/s
@@ -10,7 +10,7 @@ Cp = 4184.0       # J/kg K
 R  = 1.0/1000     # m
 A  = π*R^2        # m^2
 Vz = 2.0          # m/s
-L  = 10.0          # m                
+L  = 10.0         # m
 Lh = 0.2*L        # m
 
 β  = 210e-6	      # K⁻¹ 
