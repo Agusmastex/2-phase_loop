@@ -1,17 +1,19 @@
 using Plots
 
-tf = 0.002
-dt = 0.00001
+tf = 0.007
+dt = 0.0000005
 t  = 0:dt:tf
 nt = length(t) - 1
 
-L  = 1.0
+Δn = 100
+
+L  = 0.2
 dz = 0.01
 z  = 0:dz:L
 N  = length(z) - 1
 
-Qval = 100
-f₀ = 0.1
+Qval = 10
+f₀ = 0.0
 
 γ = 1.4
 D = 0.01
@@ -71,10 +73,11 @@ Q = [ρ m e]
 ρ_save = [ρ]
 m_save = [m]
 e_save = [e]
+t_save = [0.0]
 
 Q_new = copy(Q)
 
-for n in 1:nt
+@time for n in 1:nt
     global Q, Qnew
     for i in 2:N
         Q_new[i,:]  = 0.5*(Q[i-1,:] + Q[i+1,:]) - 0.5*dt/dz*(f(Q[i+1,:]) - f(Q[i-1,:])) + dt*ψ(Q[i-1,:], Q[i,:], Q[i+1,:], i)
@@ -85,9 +88,13 @@ for n in 1:nt
     Q[1,2] = ρ0*v0
     Q[1,3] = ρ0*U0
     Q = Q_new
-    push!(ρ_save, Q[:,1])
-    push!(m_save, Q[:,2])
-    push!(e_save, Q[:,3])
+    if n % Δn == 0 
+        println("$(round(n/nt*100, digits=1)) %")
+        push!(ρ_save, Q[:,1])
+        push!(m_save, Q[:,2])
+        push!(e_save, Q[:,3])
+        push!(t_save, t[n])
+    end
 end
 
 n_save = length(ρ_save)
@@ -97,10 +104,10 @@ U_save = [e_save[n]./ρ_save[n]   for n in 1:n_save]
 T_save = [U_save[n]/Cv .- 273.15 for n in 1:n_save]
 
 for n in 1:n_save
-    p1 = plot(z, ρ_save[n], title = "ρ")
+    p1 = plot(z, p_save[n], title = "p")
     p2 = plot(z, v_save[n], title = "v")#, ylims=(0.5, 1.5))
-    p3 = plot(z, m_save[n], title = "m",# ylims=(100,120),
-    xlabel="t = $(t[n])")
+    p3 = plot(z, T_save[n], title = "T",# ylims=(100,120),
+    xlabel="t = $(t_save[n])")
     p = plot(p1,p2,p3, layout=(3,1))
     display(p)
 end
