@@ -104,9 +104,12 @@ U_save = [e_save[n]./ρ_save[n]   for n in 1:n_save]
 T_save = [U_save[n]/Cv .- 273.15 for n in 1:n_save]
 
 for n in 1:n_save
-    p1 = plot(z, p_save[n], title = "p")
-    p2 = plot(z, v_save[n], title = "v")#, ylims=(0.5, 1.5))
-    p3 = plot(z, T_save[n], title = "T",# ylims=(100,120),
+    p1 = plot(z, ρ_save[n], title = "ρ")
+    p2 = plot(z, m_save[n], title = "G")#, ylims=(0.5, 1.5))
+    p3 = plot(z, e_save[n], title = "e",# ylims=(100,120),
+    # p1 = plot(z, p_save[n], title = "p")
+    # p2 = plot(z, v_save[n], title = "v")#, ylims=(0.5, 1.5))
+    # p3 = plot(z, T_save[n], title = "T",# ylims=(100,120),
     xlabel="t = $(t_save[n])")
     p = plot(p1,p2,p3, layout=(3,1))
     display(p)

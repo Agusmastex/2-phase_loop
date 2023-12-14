@@ -2,9 +2,9 @@ using Plots
 using SparseArrays
 using LinearAlgebra
 
-tf = 5.0
-dt = 0.1
-dz = 0.1
+tf = 0.1
+dt = 0.001
+dz = 0.005
 
 # Grid
   L  = 1.0
@@ -16,8 +16,8 @@ dz = 0.1
   n_save = nt
 
 # Toy with this
-  f = 0
-  Qval = 0
+  f = 0.0
+  Qval = 1
   g = 0
   Δn = 1
 
@@ -43,19 +43,6 @@ dz = 0.1
      zeros(N+1,N+1) little_D zeros(N+1,N+1);
      zeros(N+1,N+1) zeros(N+1,N+1) little_D])
 
-  # function little_f(Q)
-  #   ρ = Q[1:N+1]
-  #   G = Q[N+2:2N+2]
-  #   return [0; [G[j]^2/ρ[j] for j in 2:N+1]]
-  # end
-
-  # function little_g(Q)
-  #   ρ = Q[1:N+1]  
-  #   G = Q[N+2:2N+2]
-  #   e = Q[2N+3:3N+3]
-  #   return [0; [e[j]*G[j]/ρ[j] for j in 2:N+1]]
-  # end
-
   function safe(vector)
     return [0; vector[2:end]]
   end
@@ -66,8 +53,8 @@ dz = 0.1
     e = Q[2N+3:3N+3]
     return [
       G;
-      safe(G.^2 ./ ρ) + (γ-1)*e;
-      safe(e.*G./ρ)
+      G.^2 ./ ρ + (γ-1)*e;
+      e.*G./ρ
     ]
   end
 
@@ -78,7 +65,7 @@ dz = 0.1
     v = G./ρ
     return [
       zeros(N+1);
-      0.5*f/D*little_f(Q) + safe(ρ)*g;
+      0.5*f/D*safe(G.^2 ./ ρ) + safe(ρ)*g;
       -safe(q) + (γ-1)*safe(e).*little_D*v
     ]
   end
@@ -168,7 +155,6 @@ dz = 0.1
       # return J6
   end
 
-# asdf
 # Initialize fields
   ρ0 = 0.5
   v0 = 1.0
@@ -176,13 +162,14 @@ dz = 0.1
   U0 = Cv*T0
   
   q = [zi < Lh ? Qval/(Lh*A_flow) : 0 for zi in z]
+  q = [zi < Lh ? Qval : 0 for zi in z]
 
   ρ_initial = ρ0*   ones(N+1)
   G_initial = ρ0*v0*ones(N+1)
   e_initial = ρ0*U0*ones(N+1)
 
   ρ_initial = ones(N+1)
-  G_initial = ones(N+1)
+  G_initial = 5*ones(N+1)
   e_initial = 10*ones(N+1)
 
   Qn = [ρ_initial; G_initial; e_initial]
