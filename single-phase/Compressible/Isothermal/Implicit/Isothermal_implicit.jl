@@ -65,7 +65,10 @@ function Jac(Q)
     diagonal_4 =       [1/dt + 1/dx*( 2*m[j]/ρ[j])         + 2*Cd/R₀* m[j]/ρ[j]    for j in 1:N+1]
     lower_diagonal_4 = [       1/dx*(-2*m[j]/ρ[j])                                 for j in 2:N+1]
 
-    J3 = 1/dx*spdiagm(
+    # Están bien los límites de estos índices?
+
+
+    J3 = 1/dx*spdiagm(              
     -1 => lower_diagonal_3,
      0 => diagonal_3
    )
@@ -73,6 +76,8 @@ function Jac(Q)
     -1 => lower_diagonal_4,
      0 => diagonal_4
    )
+
+    # Por qué multipliqué por 1/dx a J3 y J4? Creo que esto está mal
 
     J3[1,1] = 0
     J4[1,1] = 1/dt
