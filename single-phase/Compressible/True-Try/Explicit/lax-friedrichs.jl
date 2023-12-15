@@ -105,7 +105,7 @@ dz = 0.01
 
   field_save = Dict(
     "ρ" => ρ_save,
-    "G" => G_save,
+    "G" => m_save,
     "e" => e_save,
 
     "p" => p_save,

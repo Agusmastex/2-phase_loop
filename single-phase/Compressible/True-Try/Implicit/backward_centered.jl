@@ -2,13 +2,13 @@ using Plots
 using SparseArrays
 using LinearAlgebra
 
-tf = 10.0
-dt = 0.1
+tf = 1.0
+dt = 0.01
 dz = 0.001
   
-# Toy with this
+# Change this
   f = 0
-  Qval = 1e-1
+  Qval = 0.1
   g = 0
   Δn = 1
 
@@ -21,7 +21,7 @@ dz = 0.001
 
 # Constants
   γ = 1.4
-  D = 0.01
+  D = 0.05
   Lh = 0.5*L
   A_flow = 0.25*π*D^2
   Cv = 1.3e3
@@ -62,8 +62,8 @@ dz = 0.001
     v = G./ρ
     return [
       zeros(N+1);
-      0.5*f/D*safe(G.^2 ./ ρ) + safe(ρ)*g;
-      -safe(q) + (γ-1)*safe(e).*little_D*v
+      safe(0.5*f/D*(G.^2 ./ ρ) + ρ*g);
+      safe(-q + (γ-1)*e.*little_D*v)
     ]
   end
 
@@ -72,18 +72,23 @@ dz = 0.001
 # Jacobian
 
   J1 = 1/dt*sparse(I,N+1,N+1)
+
   J2 = spdiagm(
       -1 => -1*ones(N),
        1 =>    ones(N)
      )
+  J2[1,:] = zeros(N+1)
   J2[end,end] = 2
   J2[end,end-1] = -2
   J2 = 0.5/dz*J2
+
   J3 = zeros(N+1,N+1)
+
   J6 = 0.5*(γ-1)/dz*spdiagm(
       -1 => -1*ones(N),
        1 =>    ones(N)
      )
+  J6[1,:] = zeros(N+1)
   J6[end,end-1] = -(γ-1)/dz
   J6[end,end]   =  (γ-1)/dz
 
@@ -159,8 +164,8 @@ dz = 0.001
   # T0 = 1e
   U0 = Cv*T0
   
-  q = [zi < Lh ? Qval/(Lh*A_flow) : 0 for zi in z]
-  # q = [zi < Lh ? Qval : 0 for zi in z]
+  # q = [zi < Lh ? Qval/(Lh*A_flow) : 0 for zi in z]
+  q = [zi < Lh ? Qval : 0 for zi in z]
 
   ρ_initial = ρ0*   ones(N+1)
   G_initial = ρ0*v0*ones(N+1)
@@ -213,7 +218,7 @@ dz = 0.001
   p_save = [     (γ-1)*e_save[j] for j in 1:n_save]
   T_save = [U_save[j]/Cv .- 273.15 for j in 1:n_save]
 
-  field_save = Dict(
+  field_dict = Dict(
     "ρ" => ρ_save,
     "G" => G_save,
     "e" => e_save,
@@ -225,11 +230,30 @@ dz = 0.001
 
 # Plotting
 
-select = ["p", "v", "T"]
+  select = ["G", "v", "T"]
+  
+  ## Dynamical limits
+  # for n in 1:n_save
+  #   plots = [plot(z,field_dict[name][n], title=name, formatter=:plain) for name in select]
+  #   xlabel!("t = $(t_save[n])")
+  #   p = plot(plots..., layout=(length(select), 1))
+  #   display(p)
+  # end
 
-for n in 1:n_save
-  plots = [plot(z,field_save[name][n], title=name, formatter=:plain) for name in select]
-  xlabel!("t = $(t_save[n])")
-  p = plot(plots..., layout=(length(select), 1))
-  display(p)
-end
+  ## Static limits
+  field_min = Dict()
+  field_max = Dict()
+  
+  for item in field_dict
+    name, field_save = item
+    matrix = hcat(field_save...)
+    field_min[name] = minimum(matrix)
+    field_max[name] = maximum(matrix)
+  end
+  
+  for n in 1:n_save
+    plots = [plot(z,field_dict[name][n], ylims=(field_min[name], field_max[name]), title=name, formatter=:plain) for name in select]
+    xlabel!("t = $(t_save[n])")
+    p = plot(plots..., layout=(length(select), 1))
+    display(p)
+  end
