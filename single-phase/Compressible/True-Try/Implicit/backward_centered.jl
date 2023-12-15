@@ -2,32 +2,29 @@ using Plots
 using SparseArrays
 using LinearAlgebra
 
-tf = 0.1
-dt = 0.001
-dz = 0.005
+tf = 10.0
+dt = 0.1
+dz = 0.001
+  
+# Toy with this
+  f = 0
+  Qval = 1e-1
+  g = 0
+  Δn = 1
 
 # Grid
-  L  = 1.0
+  L  = 0.2
   z  = 0:dz:L
   t  = 0:dt:tf
   nt = length(t) - 1
   N  = length(z) - 1
-  
-  n_save = nt
-
-# Toy with this
-  f = 0.0
-  Qval = 1
-  g = 0
-  Δn = 1
-
 
 # Constants
   γ = 1.4
   D = 0.01
   Lh = 0.5*L
   A_flow = 0.25*π*D^2
-  Cv = 1.4e3
+  Cv = 1.3e3
 
 # Nonlinear root function
   little_D = spdiagm(
@@ -159,18 +156,19 @@ dz = 0.005
   ρ0 = 0.5
   v0 = 1.0
   T0 = 110 + 273.15
+  # T0 = 1e
   U0 = Cv*T0
   
   q = [zi < Lh ? Qval/(Lh*A_flow) : 0 for zi in z]
-  q = [zi < Lh ? Qval : 0 for zi in z]
+  # q = [zi < Lh ? Qval : 0 for zi in z]
 
   ρ_initial = ρ0*   ones(N+1)
   G_initial = ρ0*v0*ones(N+1)
   e_initial = ρ0*U0*ones(N+1)
 
-  ρ_initial = ones(N+1)
-  G_initial = 5*ones(N+1)
-  e_initial = 10*ones(N+1)
+  # ρ_initial = ones(N+1)
+  # G_initial = 5*ones(N+1)
+  # e_initial = 10*ones(N+1)
 
   Qn = [ρ_initial; G_initial; e_initial]
 
@@ -208,15 +206,30 @@ dz = 0.005
       Qn = copy(Qk)
   end
 
+# Calculate primitive fields
+  n_save = length(ρ_save)
+  v_save = [G_save[j]./ρ_save[j] for j in 1:n_save]
+  U_save = [e_save[j]./ρ_save[j] for j in 1:n_save]
+  p_save = [     (γ-1)*e_save[j] for j in 1:n_save]
+  T_save = [U_save[j]/Cv .- 273.15 for j in 1:n_save]
+
+  field_save = Dict(
+    "ρ" => ρ_save,
+    "G" => G_save,
+    "e" => e_save,
+
+    "p" => p_save,
+    "v" => v_save,
+    "T" => T_save
+  )
+
 # Plotting
 
-  n_save = length(ρ_save)
-  for n in 1:n_save
-    p1 = plot(z, ρ_save[n], title="ρ")
-    p2 = plot(z, G_save[n], title="G")
-    p3 = plot(z, e_save[n], title="e",
-    xlabel="t = $(t_save[n])")
-    p = plot(p1,p2,p3, layout=(3,1))
-    display(p)
-  end
+select = ["p", "v", "T"]
 
+for n in 1:n_save
+  plots = [plot(z,field_save[name][n], title=name, formatter=:plain) for name in select]
+  xlabel!("t = $(t_save[n])")
+  p = plot(plots..., layout=(length(select), 1))
+  display(p)
+end
