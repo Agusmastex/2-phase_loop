@@ -50,3 +50,7 @@ To do: Construir una función que tome los parámetros importantes (th,tf,Δp,β
  - steady: Resuelve los perfiles de presión y temperaturas con Vz dada
  - transient_temperature: Resuelve el perfil de temperaturas transitorio con Vz dada
  - transient: Resuelve los perfiles de presión y temperaturas transitorios con Vz dada
+
+ --- 
+
+ Todo diciembre 2023: Reescribir transient temperature desde cero con new clean code y técnicas de integración de orden superior

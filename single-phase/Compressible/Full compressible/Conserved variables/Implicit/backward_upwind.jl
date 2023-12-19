@@ -2,7 +2,7 @@ using Plots
 using SparseArrays
 using LinearAlgebra
 
-tf = 1.0
+tf = 0.5
 dt = 0.01
 dz = 0.01
   
@@ -198,9 +198,9 @@ dz = 0.01
 
 # Calculate primitive fields
   n_save = length(ρ_save)
-  v_save = [G_save[j]./ρ_save[j] for j in 1:n_save]
-  U_save = [e_save[j]./ρ_save[j] for j in 1:n_save]
-  p_save = [     (γ-1)*e_save[j]/1e5 for j in 1:n_save]
+  v_save = [G_save[j]./ρ_save[j]   for j in 1:n_save]
+  U_save = [e_save[j]./ρ_save[j]   for j in 1:n_save]
+  p_save = [(γ-1)*e_save[j]/1e2    for j in 1:n_save]
   T_save = [U_save[j]/Cv .- 273.15 for j in 1:n_save]
 
   field_dict = Dict(
@@ -210,35 +210,38 @@ dz = 0.01
 
     "p" => p_save,
     "v" => v_save,
-    "T" => T_save
+    "T" => T_save,
+
+    "U" => U_save
   )
 
 # Plotting
 
-  select = ["ρ", "v", "T"]
+  select = ["ρ","v","T"]
   
   ## Dynamical limits
-  for n in 1:n_save
-    plots = [plot(z,field_dict[name][n], title=name, formatter=:plain) for name in select]
-    xlabel!("t = $(t_save[n])")
-    p = plot(plots..., layout=(length(select), 1))
-    display(p)
-  end
-
-  ## Static limits
-  # field_min = Dict()
-  # field_max = Dict()
-  
-  # for item in field_dict
-  #   name, field_save = item
-  #   matrix = hcat(field_save...)
-  #   field_min[name] = minimum(matrix)
-  #   field_max[name] = maximum(matrix)
-  # end
-  
   # for n in 1:n_save
-  #   plots = [plot(z,field_dict[name][n], ylims=(field_min[name], field_max[name]), title=name, formatter=:plain) for name in select]
+  #   plots = [plot(z,field_dict[name][n], title=name, formatter=:plain) for name in select]
   #   xlabel!("t = $(t_save[n])")
   #   p = plot(plots..., layout=(length(select), 1))
   #   display(p)
   # end
+
+  ## Static limits
+  field_min = Dict()
+  field_max = Dict()
+  
+  for item in field_dict
+    name, field_save = item
+    matrix = hcat(field_save...)
+    field_min[name] = minimum(matrix)
+    field_max[name] = maximum(matrix)
+  end
+  
+  for n in 1:n_save
+    plots = [plot(z,field_dict[name][n], ylims=(field_min[name], field_max[name]), title=name, formatter=:plain) for name in select]
+    plot!(z,q./(ρ0*Cp*T0).*z.+v0)
+    xlabel!("t = $(t_save[n])")
+    p = plot(plots..., layout=(length(select), 1))
+    display(p)
+  end

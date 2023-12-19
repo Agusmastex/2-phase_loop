@@ -1,8 +1,14 @@
 using Plots
 
-tf = 0.05
-dt = 0.00001
-dz = 0.01
+tf = 0.00000001
+dt = 0.000000000001 
+dz = 0.0001
+
+# Change this
+  Qval = 10000
+  f₀ = 0
+  g = 0
+  Δn = 1
 
 # Grid
   L  = 0.2
@@ -11,18 +17,12 @@ dz = 0.01
   nt = length(t) - 1
   N  = length(z) - 1
 
-# Change this
-  Qval = 10000
-  f₀ = 0.0
-  g = 0
-  Δn = 1
-
 # Constants
   γ = 1.4
-  D = 0.01
-  A = π*D^2/4
+  D = 0.05
+  A = 0.25*π*D^2
   Lh = 0.5*L
-  Cv = 1.5e3
+  Cv = 1.3e3
 
 # Flux and source functions
   function f(Q)
@@ -60,7 +60,7 @@ dz = 0.01
   U0 = Cv*T0
   
   q = [zi < Lh ? Qval/(A*Lh) : 0 for zi in z]
-  q = [zi < Lh ? Qval : 0 for zi in z]
+  # q = [zi < Lh ? Qval : 0 for zi in z]
   
   ρ = ρ0   *ones(N+1)
   m = ρ0*v0*ones(N+1)
