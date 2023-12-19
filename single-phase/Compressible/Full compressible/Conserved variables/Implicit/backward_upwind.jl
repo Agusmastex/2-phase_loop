@@ -10,7 +10,7 @@ dz = 0.01
   f = 0
   Qval = 100
   g = 0
-  Δn = 1
+  Δn = 2
 
 # Grid
   L  = 0.5
@@ -145,7 +145,6 @@ dz = 0.01
 
 
       return dropzeros([J1 J2 J3; J4 J5 J6; J7 J8 J9])
-      # return Matrix(J2)
   end
 
 # Initialize fields
@@ -240,7 +239,6 @@ dz = 0.01
   
   for n in 1:n_save
     plots = [plot(z,field_dict[name][n], ylims=(field_min[name], field_max[name]), title=name, formatter=:plain) for name in select]
-    plot!(z,q./(ρ0*Cp*T0).*z.+v0)
     xlabel!("t = $(t_save[n])")
     p = plot(plots..., layout=(length(select), 1))
     display(p)
