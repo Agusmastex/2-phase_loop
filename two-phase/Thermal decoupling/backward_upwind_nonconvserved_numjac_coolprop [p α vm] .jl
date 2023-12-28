@@ -1,10 +1,11 @@
 using Plots
 using SparseArrays
 using LinearAlgebra
+using CoolProp
 
 tf = 0.5
-dt = 0.01
-dz = 0.01
+dt = 0.1
+dz = 0.05
   
 # Change this
   f = 0
@@ -22,11 +23,11 @@ dz = 0.01
 
 # Constants
   D = 0.05
-  Lh = 0.3*L
+  Lh = 0.5*L
   A_flow = 0.25*π*D^2
   ρ1 = 1000
   hfg = 2.2e6
-  R_gas = 8.314/(18/1000)
+  R_gas = 8.314/0.018
 
 # Nonlinear root function
   centered_D = spdiagm(
@@ -49,26 +50,31 @@ dz = 0.01
   end
 
   function F(Qk, Qn)
-    ρm = Qk[1:N+1]
+    p = Qk[1:N+1]
     α = Qk[N+2:2N+2]
     vm = Qk[2N+3:3N+3]
-    ρm_n = Qn[1:N+1]
+
+    p_n = Qn[1:N+1]
     α_n = Qn[N+2:2N+2]
     vm_n = Qn[2N+3:3N+3]
-    ρ2 = (ρm - (1 .- α)*ρ1)./α
-    p = R_gas*T_adjust*ρ2
+
+    ρ2 = [PropsSI("D", "P", pi, "Q", 1, "water") for pi in p]
+    ρm = (1 .- α)ρ1 + α.*ρ2
+
+    ρ2_n = [PropsSI("D", "P", pi, "Q", 1, "water") for pi in p_n]
+    ρm_n = (1 .- α_n)ρ1 + α_n.*ρ2_n
+
     return [
       (ρm - ρm_n)/dt + upwind_D*(ρm.*vm);
-      (α  - α_n )/dt - upwind_D*((1 .- α).*vm) - Γ/ρ1;
-      (vm - vm_n)/dt + vm.*upwind_D*vm + upwind_D*p./ρm + 0.5*f/D*vm.*vm .+ g
+      (α.*ρ2 - α_n.*ρ2_n)/dt + upwind_D*(α.*ρ2.*vm) - safe(Γ);
+      (vm - vm_n)/dt + vm.*upwind_D*vm + (1 ./ ρm).*upwind_D*p + safe(0.5*f/D*vm.*vm .+ g)
     ]
   end
 
 # Jacobian
   e(i) = [ k == i ? 1 : 0 for k in 1:3N+3 ]
-
+  δ = 1e-4
   function Jac(Q, Qn)
-    δ = 1e-4
     J = zeros(3N+3,3N+3)
     for j in 1:3N+3
       J[:,j] = (F(Q + δ*e(j), Qn) - F(Q, Qn))/δ
@@ -77,22 +83,20 @@ dz = 0.01
   end
 
 # Initialize fields
-  ρ2 = 0.5
-  α₀ = 0.3
-  ρm₀ = (1-α₀)*ρ1 + α₀*ρ2
+  p₀ = 1e5
+  α₀ = 0.1
   vm₀ = 1.0
   
-  q = [zi >= 0.5*(L-Lh) && zi <= 0.5(L+Lh) ? Qval/(Lh*A_flow) : 0 for zi in z]
-  # q = [zi <= Lh ? Qval/(Lh*A_flow) : 0 for zi in z]
+  q = [zi <= Lh ? Qval/(Lh*A_flow) : 0 for zi in z]
   Γ = q/hfg
 
-  ρm_initial = ρm₀*ones(N+1)
+  p_initial  = p₀*ones(N+1)
   α_initial  = α₀*ones(N+1)
   vm_initial = vm₀*ones(N+1)
 
-  Qn = [ρm_initial; α_initial; vm_initial]
+  Qn = [p_initial; α_initial; vm_initial]
 
-  ρm_save = [ρm_initial]
+  p_save  = [p_initial]
   α_save  = [α_initial]
   vm_save = [vm_initial]
   t_save  = [0.0]
@@ -113,10 +117,10 @@ dz = 0.01
       end
       println()
       if n % Δn == 0
-          ρm = Qk[1:N+1]
+          p = Qk[1:N+1]
           α  = Qk[N+2:2N+2]
           vm = Qk[2N+3:3N+3]
-          push!(ρm_save, ρm)
+          push!(p_save, p)
           push!(α_save, α)
           push!(vm_save, vm)
           push!(t_save, t[n])
@@ -127,29 +131,33 @@ dz = 0.01
   end
 
 # Calculate derived fields
-  n_save  = length(ρm_save)
-  ρ2_save = [(ρm_save[j] - (1 .- α_save[j])*ρ1)./α_save[j] for j in 1:n_save]
-  p_save  = [R_gas*T_adjust*ρ2_save[j]/1e2 for j in 1:n_save]
+  n_save  = length(p_save)
+  ρ2_save = [p_save[j]/(R_gas*T_adjust) for j in 1:n_save]
+  ρm_save = [(1 .- α_save[j])*ρ1 + α_save[j].*ρ2_save[j] for j in 1:n_save]
+  Gm_save = [ρm_save[j].*vm_save[j] for j in 1:n_save]
 
   field_dict = Dict(
-    "ρm" => ρm_save,
+    "p"  => p_save/1e2,
     "α"  => α_save,
     "vm" => vm_save,
 
     "ρ2" => ρ2_save,
-    "p"  => p_save
+    "ρm" => ρm_save,
+    "Gm" => Gm_save
   )
 
 # Plotting
 
-  select = ["ρm","α", "vm","p"]
+  select = ["p","α", "vm","ρ2"]
  
   ## Dynamical limits
   for n in 1:n_save
+    global p
     plots = [plot(z,field_dict[name][n], title=name, formatter=:plain) for name in select]
     xlabel!("t = $(t_save[n])")
     p = plot(plots...)#, layout=(length(select), 1))
     display(p)
+    sleep(0.5)
   end
 
   ## Static limits
@@ -172,7 +180,7 @@ dz = 0.01
   #   # sleep(1)
   # end
 
-  # simulation = "Backward Upwind Primitive NumJac"
-  # p[:plot_title] = simulation
-  # plot(p)
-  # savefig(simulation)
+  simulation = "Backward Upwind Nonconserved NumJac Coolprop [p α vm]"
+  p[:plot_title] = simulation
+  plot(p)
+  savefig(simulation)
