@@ -2,15 +2,15 @@ using Plots
 using SparseArrays
 using LinearAlgebra
 
-tf = 0.5
-dt = 0.01
+tf = 1.0
+dt = 0.02
 dz = 0.01
   
 # Change this
   f = 0
   Qval = 100
   g = 0
-  Δn = 2
+  Δn = 1
 
 # Grid
   L  = 0.5
@@ -169,7 +169,7 @@ dz = 0.01
 # Main loop
   tol = 1e-6
   Qk = copy(Qn)
-  for n in 1:nt
+  for n in 1:nt+1
       global Qk, Qn
       res = 1.0
       k = 0
@@ -190,7 +190,7 @@ dz = 0.01
           push!(e_save, e)
           push!(t_save, t[n])
           println()
-          println("$(round(n/nt*100, digits=1))% ")
+          println("$(round(n/(nt+1)*100, digits=1))% ")
       end
       Qn = copy(Qk)
   end
@@ -238,8 +238,14 @@ dz = 0.01
   end
   
   for n in 1:n_save
+    global p
     plots = [plot(z,field_dict[name][n], ylims=(field_min[name], field_max[name]), title=name, formatter=:plain) for name in select]
     xlabel!("t = $(t_save[n])")
     p = plot(plots..., layout=(length(select), 1))
     display(p)
   end
+
+  # simulation = "Backward Upwind Conserved AnJac"
+  # p[:plot_title] = simulation
+  # plot(p)
+  # savefig(simulation)

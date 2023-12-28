@@ -43,18 +43,35 @@ function Tsat_IAWPS_rho_newton(ρ)
 end
 
 
-rhos = 0.5:0.5:2.5
+rhos = 0.1:0.5:200.0
 
 Tsat1 = [PropsSI("T", "D", rhoi, "Q", 1, "Water") - 273.15 for rhoi in rhos]
 # Tsat2 = [Tsat_IAWPS_rho_findzero(rhoi) - 273.15 for rhoi in rhos]
-Tsat3 = [Tsat_IAWPS_rho_newton(rhoi) - 273.15 for rhoi in rhos]
+# Tsat3 = [Tsat_IAWPS_rho_newton(rhoi) - 273.15 for rhoi in rhos]
 
 Psat1 = [PropsSI("P", "D", rhoi, "Q", 1, "Water")/1e5 for rhoi in rhos]
 # Psat2 = [Psat_IAWPS_rho(rhoi, Tsat_IAWPS_rho_findzero)/1e5 for rhoi in rhos]
-Psat3 = [Psat_IAWPS_rho(rhoi, Tsat_IAWPS_rho_newton)/1e5 for rhoi in rhos]
+# Psat3 = [Psat_IAWPS_rho(rhoi, Tsat_IAWPS_rho_newton)/1e5 for rhoi in rhos]
 
-p1 = plot(rhos, [Tsat1, Tsat3],
-          ylabel="Tsat", xlabel="ρ")
-p2 = plot(rhos, [Psat1, Psat3],
-          ylabel="Psat", xlabel="ρ")
-plot(p1, p2, layout=(2,1))
+# p1 = plot(rhos, [Tsat1],#, Tsat3],
+#           ylabel="Tsat", xlabel="ρ")
+# p2 = plot(rhos, [Psat1],#, Psat3],
+#           ylabel="Psat", xlabel="ρ")
+# plot(p1, p2, layout=(2,1))
+
+# plot(rhos,Psat1)
+# R = 8.314/(18/1000)
+# plot!(rhos,rhos*R*(160+273.15)/1e5)
+
+vmid = 5.0
+vinf = 0.0001:0.001:0.01
+vsup = 0.1:0.5:10.0
+
+ps = 1000:10:1e6
+
+Vsat_gas = [PropsSI("V", "P", pi, "Q", 1, "Water") for pi in ps]
+Vsat_liq = [PropsSI("V", "P", pi, "Q", 0, "Water") for pi in ps]
+
+plot(Vsat_liq, ps)
+plot!(Vsat_gas, ps)
+plot!(R)
