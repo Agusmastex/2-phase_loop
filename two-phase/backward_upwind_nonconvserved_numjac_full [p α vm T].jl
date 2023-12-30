@@ -1,14 +1,15 @@
 using Plots
 using SparseArrays
 using LinearAlgebra
+using CoolProp
 
 tf = 1.0
 dt = 0.01
-dz = 0.01
+dz = 0.05
   
 # Change this
   f = 0
-  Qval = 10000
+  Qval = 100e3
   g = 0
   Δn = 1
   T_adjust = 160 + 273.15
@@ -25,7 +26,8 @@ dz = 0.01
   Lh = 0.5*L
   A_flow = 0.25*π*D^2
   ρ1 = 1000
-  hfg = 2.2e8
+  hfg = PropsSI("H","P",1e5,"Q",1,"Water") - PropsSI("H","P",1e5,"Q",0,"Water")
+  hfg = 2e8
   R_gas = 8.314/0.018
   Cp_liq = 4184.0
 
@@ -37,7 +39,7 @@ dz = 0.01
      1 =>    ones(N)
   )
   centered_D[1,:] = zeros(N+1)
-  centered_D[end,:] = [zeros(N-1); -2; 2]
+  centered_D[end,:] = [zeros(N-2); 2; -8; 6]
   centered_D = 0.5/dz*dropzeros(centered_D)
 
   upwind_D = spdiagm(
@@ -51,12 +53,17 @@ dz = 0.01
     return [0; vector[2:end]]
   end
 
+p1 = 90e3
+p2 = 110e3
+rho1 = PropsSI("D", "P", p1, "Q", 1, "Water")
+rho2 = PropsSI("D", "P", p2, "Q", 1, "Water")
   function ρ_vapsat(P)
-    return P/(R_gas*T_adjust)
+    return (rho2 - rho1)/(p2 - p1)*(P - p1) + rho1
   end
-
+U1 = PropsSI("U", "P", p1, "Q", 1, "Water")
+U2 = PropsSI("U", "P", p2, "Q", 1, "Water")
   function U_vapsat(P)
-    return 0
+    return (U2 - U1)/(p2 - p1)*(P - p1) + U1
   end
 
   T_triple = 273.16
@@ -90,8 +97,8 @@ dz = 0.01
     vm_n = Qn[2N+3:3N+3]
     T_n = Qn[3N+4:4N+4]
 
-    ρ2 = ρ_vapsat(p)
-    ρ2_n = ρ_vapsat(p_n)
+    ρ2 = ρ_vapsat.(p)
+    ρ2_n = ρ_vapsat.(p_n)
 
     ρm = (1 .- α)*ρ1 + α.*ρ2
     ρm_n = (1 .- α_n)*ρ1 + α_n.*ρ2_n
@@ -130,7 +137,7 @@ dz = 0.01
   p₀ = 1e5
   α₀ = 0.01
   vm₀ = 1.0
-  T₀ = 99 + 273.15
+  T₀ = 25 + 273.15
   
   q = [zi <= Lh ? Qval/(Lh*A_flow) : 0 for zi in z]
 
@@ -183,7 +190,7 @@ dz = 0.01
   T_save  = [T_save[j] .- 273.15 for j in 1:n_save]
 
   field_dict = Dict(
-    "p"  => p_save/1e2,
+    "p"  => p_save/1e3,
     "α"  => α_save,
     "vm" => vm_save,
     "T"  => T_save,
@@ -204,24 +211,24 @@ dz = 0.01
   end
 
   ## Static limits
-  # field_min = Dict()
-  # field_max = Dict()
+  field_min = Dict()
+  field_max = Dict()
   
-  # for item in field_dict
-  #   name, field_save = item
-  #   matrix = hcat(field_save...)
-  #   field_min[name] = minimum(matrix)
-  #   field_max[name] = maximum(matrix)
-  # end
+  for item in field_dict
+    name, field_save = item
+    matrix = hcat(field_save...)
+    field_min[name] = minimum(matrix)
+    field_max[name] = maximum(matrix)
+  end
   
-  # for n in 1:n_save
-  #   global p 
-  #   plots = [plot(z,field_dict[name][n], ylims=(0.995*field_min[name], 1.005*field_max[name]), title=name, formatter=:plain) for name in select]
-  #   xlabel!("t = $(t_save[n])")
-  #   p = plot(plots..., layout=(length(select), 1))
-  #   display(p)
-  #   # sleep(1)
-  # end
+  for n in 1:n_save
+    global p 
+    plots = [plot(z,field_dict[name][n], ylims=(0.995*field_min[name], 1.005*field_max[name]), title=name, formatter=:plain) for name in select]
+    xlabel!("t = $(t_save[n])")
+    p = plot(plots...)#, layout=(length(select), 1))
+    display(p)
+    # sleep(1)
+  end
 
   # simulation = "Backward Upwind Nonconserved NumJac [p α vm]"
   # p[:plot_title] = simulation
