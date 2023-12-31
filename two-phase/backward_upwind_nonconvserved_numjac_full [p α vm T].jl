@@ -8,7 +8,7 @@ dt = 0.01
 dz = 0.05
   
 # Change this
-  f = 0
+  f = 0.5
   Qval = 100e3
   g = 0
   Δn = 1
@@ -26,12 +26,12 @@ dz = 0.05
   Lh = 0.5*L
   A_flow = 0.25*π*D^2
   ρ1 = 1000
-  hfg = PropsSI("H","P",1e5,"Q",1,"Water") - PropsSI("H","P",1e5,"Q",0,"Water")
-  hfg = 2e8
+  # hfg = PropsSI("H","P",1e5,"Q",1,"Water") - PropsSI("H","P",1e5,"Q",0,"Water")
+  hfg = 2e6
   R_gas = 8.314/0.018
   Cp_liq = 4184.0
-
-  h_liqsat = 300e3
+  h_liqsat = PropsSI("H", "P", 1e5, "Q", 0, "Water") 
+  h_critboil = 0.8*h_liqsat # Net void critical enthalpy
 
 # Nonlinear root function
   centered_D = spdiagm(
@@ -53,35 +53,43 @@ dz = 0.05
     return [0; vector[2:end]]
   end
 
-p1 = 90e3
-p2 = 110e3
-rho1 = PropsSI("D", "P", p1, "Q", 1, "Water")
-rho2 = PropsSI("D", "P", p2, "Q", 1, "Water")
+  p1 = 90e3
+  p2 = 110e3
+  rho1 = PropsSI("D", "P", p1, "Q", 1, "Water")
+  rho2 = PropsSI("D", "P", p2, "Q", 1, "Water")
   function ρ_vapsat(P)
     return (rho2 - rho1)/(p2 - p1)*(P - p1) + rho1
   end
-U1 = PropsSI("U", "P", p1, "Q", 1, "Water")
-U2 = PropsSI("U", "P", p2, "Q", 1, "Water")
+  U1 = PropsSI("U", "P", p1, "Q", 1, "Water")
+  U2 = PropsSI("U", "P", p2, "Q", 1, "Water")
   function U_vapsat(P)
     return (U2 - U1)/(p2 - p1)*(P - p1) + U1
   end
-
+  Tsat1 = PropsSI("T", "P", p1, "Q", 1, "Water")
+  Tsat2 = PropsSI("T", "P", p2, "Q", 1, "Water")
+  function T_vapsat(P)
+    return (Tsat2 - Tsat1)/(p2 - p1)*(P - p1) + Tsat1
+  end
+    
   T_triple = 273.16
   function U_liq(T)
     return Cp_liq*(T - T_triple)
   end
 
-  function boiling(T)
-    Γ = zeros(N+1)
+  function boiling(T,P,α)
+    Γ_w = zeros(N+1)
     for i in 1:N+1
-      if T[i] > 100 + 273.15
-        Γ[i] = q[i]/hfg
-      elseif T[i] > 75 + 273.15
-        Γ[i] = 0.1*q[i]/hfg
+      if U_liq(T[i]) > h_liqsat
+        Γ_w[i] = q[i]/hfg
+      elseif U_liq(T[i]) > h_critboil
+        Γ_w[i] = q[i]*(U_liq(T[i]) - h_critboil)/(h_liqsat - h_critboil)/hfg
       end
     end
-    # Γ = q/hfg
-    return Γ
+    H_interface = 5e5*α
+    T_vapor = T_vapsat.(P)
+    Γ_ig = H_interface.*(T - T_vapor)/hfg
+    # Γ_w = zeros(N+1)
+    return Γ_ig + Γ_w
     # return [ U_liq(T[i]) > h_liqsat ? q[i]/hfg : 0 for i in 1:N+1 ]
     # return [ T[i] > 100 + 273.15 ? q[i]/hfg : 0 for i in 1:N+1 ]
   end
@@ -97,22 +105,22 @@ U2 = PropsSI("U", "P", p2, "Q", 1, "Water")
     vm_n = Qn[2N+3:3N+3]
     T_n = Qn[3N+4:4N+4]
 
-    ρ2 = ρ_vapsat.(p)
+    ρ2   = ρ_vapsat.(p)
     ρ2_n = ρ_vapsat.(p_n)
 
-    ρm = (1 .- α)*ρ1 + α.*ρ2
+    ρm   = (1 .- α)*ρ1 + α.*ρ2
     ρm_n = (1 .- α_n)*ρ1 + α_n.*ρ2_n
 
-    U2 = U_vapsat.(p)
+    U2   = U_vapsat.(p)
     U2_n = U_vapsat.(p_n)
 
-    U1 = U_liq.(T)
+    U1   = U_liq.(T)
     U1_n = U_liq.(T_n)
 
-    ρmUm = (1 .- α)*ρ1.*U1 + α.*ρ2.*U2
+    ρmUm   = (1 .- α)*ρ1.*U1 + α.*ρ2.*U2
     ρmUm_n = (1 .- α_n)*ρ1.*U1_n + α_n.*ρ2_n.*U2_n
 
-    Γ = boiling(T)
+    Γ = boiling(T,p,α)
 
     return [
       (ρm     - ρm_n      )/dt + upwind_D*(ρm.*vm);
@@ -137,7 +145,7 @@ U2 = PropsSI("U", "P", p2, "Q", 1, "Water")
   p₀ = 1e5
   α₀ = 0.01
   vm₀ = 1.0
-  T₀ = 25 + 273.15
+  T₀ = 70 + 273.15
   
   q = [zi <= Lh ? Qval/(Lh*A_flow) : 0 for zi in z]
 
@@ -206,29 +214,29 @@ U2 = PropsSI("U", "P", p2, "Q", 1, "Water")
     global p
     plots = [plot(z,field_dict[name][n], title=name, formatter=:plain) for name in select]
     xlabel!("t = $(t_save[n])")
-    p = plot(plots...)#, layout=(length(select), 1))
+    p = plot(plots...)
     display(p)
   end
 
   ## Static limits
-  field_min = Dict()
-  field_max = Dict()
+  # field_min = Dict()
+  # field_max = Dict()
   
-  for item in field_dict
-    name, field_save = item
-    matrix = hcat(field_save...)
-    field_min[name] = minimum(matrix)
-    field_max[name] = maximum(matrix)
-  end
+  # for item in field_dict
+  #   name, field_save = item
+  #   matrix = hcat(field_save...)
+  #   field_min[name] = minimum(matrix)
+  #   field_max[name] = maximum(matrix)
+  # end
   
-  for n in 1:n_save
-    global p 
-    plots = [plot(z,field_dict[name][n], ylims=(0.995*field_min[name], 1.005*field_max[name]), title=name, formatter=:plain) for name in select]
-    xlabel!("t = $(t_save[n])")
-    p = plot(plots...)#, layout=(length(select), 1))
-    display(p)
-    # sleep(1)
-  end
+  # for n in 1:n_save
+  #   global p 
+  #   plots = [plot(z,field_dict[name][n], ylims=(0.995*field_min[name], 1.005*field_max[name]), title=name, formatter=:plain) for name in select]
+  #   xlabel!("t = $(t_save[n])")
+  #   p = plot(plots...)
+  #   display(p)
+  #   # sleep(1)
+  # end
 
   # simulation = "Backward Upwind Nonconserved NumJac [p α vm]"
   # p[:plot_title] = simulation
