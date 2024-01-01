@@ -2,15 +2,15 @@ using Plots
 using SparseArrays
 using LinearAlgebra
 
-tf = 1.0
+tf = 0.7
 dt = 0.02
 dz = 0.01
   
 # Change this
-  f = 0
+  f = 0.5
   Qval = 100
   g = 0
-  Δn = 1
+  Δn = 2
 
 # Grid
   L  = 0.5
@@ -216,7 +216,7 @@ dz = 0.01
 
 # Plotting
 
-  select = ["ρ","v","T"]
+  select = ["ρ","v","T","p"]
   
   ## Dynamical limits
   # for n in 1:n_save
@@ -241,7 +241,7 @@ dz = 0.01
     global p
     plots = [plot(z,field_dict[name][n], ylims=(field_min[name], field_max[name]), title=name, formatter=:plain) for name in select]
     xlabel!("t = $(t_save[n])")
-    p = plot(plots..., layout=(length(select), 1))
+    p = plot(plots...)#, layout=(length(select), 1))
     display(p)
   end
 

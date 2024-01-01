@@ -2,15 +2,15 @@ using Plots
 using SparseArrays
 using LinearAlgebra
 
-tf = 1.0
+tf = 0.7
 dt = 0.02
 dz = 0.01
   
 # Change this
-  f = 0
+  f = 0.1
   Qval = 100
   g = 0
-  Δn = 1
+  Δn = 2
 
 # Grid
   L  = 0.5
@@ -62,13 +62,13 @@ dz = 0.01
   end
 
 # Jacobian
-  e(i) = [ k == i ? 1 : 0 for k in 1:3N+3 ]
+  basis(i) = [ k == i ? 1 : 0 for k in 1:3N+3 ]
 
   function Jac(Q, Qn)
     δ = 1e-4
     J = zeros(3N+3,3N+3)
     for j in 1:3N+3
-      J[:,j] = (F(Q + δ*e(j), Qn) - F(Q, Qn))/δ
+      J[:,j] = (F(Q + δ*basis(j), Qn) - F(Q, Qn))/δ
     end
     return J
   end
@@ -123,7 +123,7 @@ dz = 0.01
 
 # Calculate derived fields
   n_save = length(ρ_save)
-  p_save = [(γ-1)*ρ_save[j].*U_save[j]/1e2    for j in 1:n_save]
+  p_save = [(γ-1)*ρ_save[j].*U_save[j]/1e3    for j in 1:n_save]
   T_save = [U_save[j]/Cv .- 273.15 for j in 1:n_save]
 
   field_dict = Dict(
@@ -137,7 +137,7 @@ dz = 0.01
 
 # Plotting
 
-  select = ["p","v","T"]
+  select = ["ρ","v","T","p"]
   
   ## Dynamical limits
   # for n in 1:n_save
@@ -162,9 +162,8 @@ dz = 0.01
     global p 
     plots = [plot(z,field_dict[name][n], ylims=(field_min[name], field_max[name]), title=name, formatter=:plain) for name in select]
     xlabel!("t = $(t_save[n])")
-    p = plot(plots..., layout=(length(select), 1))
+    p = plot(plots...)#, layout=(length(select), 1))
     display(p)
-    sleep(0.1)
   end
 
   # simulation = "Backward Upwind Primitive NumJac"
