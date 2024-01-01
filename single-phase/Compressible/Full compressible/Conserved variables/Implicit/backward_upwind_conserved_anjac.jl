@@ -7,7 +7,7 @@ dt = 0.02
 dz = 0.01
   
 # Change this
-  f = 0.5
+  f = 0.1
   Qval = 100
   g = 0
   Δn = 2
@@ -199,7 +199,7 @@ dz = 0.01
   n_save = length(ρ_save)
   v_save = [G_save[j]./ρ_save[j]   for j in 1:n_save]
   U_save = [e_save[j]./ρ_save[j]   for j in 1:n_save]
-  p_save = [(γ-1)*e_save[j]/1e2    for j in 1:n_save]
+  p_save = [(γ-1)*e_save[j]/1e3    for j in 1:n_save]
   T_save = [U_save[j]/Cv .- 273.15 for j in 1:n_save]
 
   field_dict = Dict(
