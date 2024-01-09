@@ -3,16 +3,15 @@ using SparseArrays
 using LinearAlgebra
 using CoolProp
 
-tf = 1.0
+tf = 0.7
 dt = 0.01
 dz = 0.05
   
 # Change this
-  f = 0.5
-  Qval = 100e3
+  f = 0
+  Qval = 13e3
   g = 0
   Δn = 1
-  T_adjust = 160 + 273.15
 
 # Grid
   L  = 0.5
@@ -26,12 +25,13 @@ dz = 0.05
   Lh = 0.5*L
   A_flow = 0.25*π*D^2
   ρ1 = 1000
-  # hfg = PropsSI("H","P",1e5,"Q",1,"Water") - PropsSI("H","P",1e5,"Q",0,"Water")
-  hfg = 2e6
-  R_gas = 8.314/0.018
+  hfg = PropsSI("H","P",1e5,"Q",1,"Water") - PropsSI("H","P",1e5,"Q",0,"Water")
+  hfg = 4e7
   Cp_liq = 4184.0
   h_liqsat = PropsSI("H", "P", 1e5, "Q", 0, "Water") 
-  h_critboil = 0.8*h_liqsat # Net void critical enthalpy
+  h_critboil = 0.95*h_liqsat # Net void critical enthalpy
+  # T_boil = PropsSI("T", "P", 1e5, "Q", 0, "Water")
+  T_boil = 100 + 273.15
 
 # Nonlinear root function
   centered_D = spdiagm(
@@ -72,26 +72,31 @@ dz = 0.05
   end
     
   T_triple = 273.16
-  function U_liq(T)
-    return Cp_liq*(T - T_triple)
+  function U_liq(T,p)
+    if T < T_boil
+      return Cp_liq*(T - T_triple)
+    else
+      return Cp_liq*(T - T_triple)
+      # return h_liqsat
+    end
   end
+
 
   function boiling(T,P,α)
     Γ_w = zeros(N+1)
     for i in 1:N+1
       if U_liq(T[i]) > h_liqsat
         Γ_w[i] = q[i]/hfg
-      elseif U_liq(T[i]) > h_critboil
-        Γ_w[i] = q[i]*(U_liq(T[i]) - h_critboil)/(h_liqsat - h_critboil)/hfg
+      # elseif U_liq(T[i]) > h_critboil
+      #   ε = ρ1/(ρ_vapsat(P[i])*hfg)*(h_liqsat - minimum([U_liq(T[i]), h_liqsat]))
+      #   Γ_w[i] = q[i]*(U_liq(T[i]) - h_critboil)/(h_liqsat - h_critboil)/(1 + ε)/hfg
       end
     end
-    H_interface = 5e5*α
-    T_vapor = T_vapsat.(P)
-    Γ_ig = H_interface.*(T - T_vapor)/hfg
-    # Γ_w = zeros(N+1)
+    # H_interface = 6.6e6*α
+    # T_vapor = T_vapsat.(P)
+    # Γ_ig = H_interface.*(T - T_vapor)/hfg
+    Γ_ig = zeros(N+1)
     return Γ_ig + Γ_w
-    # return [ U_liq(T[i]) > h_liqsat ? q[i]/hfg : 0 for i in 1:N+1 ]
-    # return [ T[i] > 100 + 273.15 ? q[i]/hfg : 0 for i in 1:N+1 ]
   end
 
   function F(Qk, Qn)
@@ -114,8 +119,8 @@ dz = 0.05
     U2   = U_vapsat.(p)
     U2_n = U_vapsat.(p_n)
 
-    U1   = U_liq.(T)
-    U1_n = U_liq.(T_n)
+    U1   = U_liq.(T,p)
+    U1_n = U_liq.(T_n,p_n)
 
     ρmUm   = (1 .- α)*ρ1.*U1 + α.*ρ2.*U2
     ρmUm_n = (1 .- α_n)*ρ1.*U1_n + α_n.*ρ2_n.*U2_n
@@ -123,16 +128,16 @@ dz = 0.05
     Γ = boiling(T,p,α)
 
     return [
-      (ρm     - ρm_n      )/dt + upwind_D*(ρm.*vm);
-      (α.*ρ2  - α_n.*ρ2_n )/dt + upwind_D*(α.*ρ2.*vm) - safe(Γ);
-      (vm     - vm_n      )/dt + vm.*upwind_D*vm + (1 ./ ρm).*upwind_D*p + safe(0.5*f/D*vm.*vm .+ g);
-      (ρmUm - ρmUm_n)/dt + upwind_D*(ρmUm.*vm) + safe(-q + p.*centered_D*vm)
+      (ρm    - ρm_n     )/dt + upwind_D*(ρm.*vm);
+      (α.*ρ2 - α_n.*ρ2_n)/dt + upwind_D*(α.*ρ2.*vm) - safe(Γ);
+      (vm    - vm_n     )/dt + vm.*upwind_D*vm + (1 ./ ρm).*upwind_D*p + safe(0.5*f/D*vm.*vm .+ g);
+      (ρmUm  - ρmUm_n   )/dt + upwind_D*(ρmUm.*vm) + safe(-q + p.*centered_D*vm)
     ]
   end
 
 # Jacobian
   e(i) = [ k == i ? 1 : 0 for k in 1:4N+4 ]
-  δ = 1e-4
+  δ = 1e-6
   function Jac(Q, Qn)
     J = zeros(4N+4,4N+4)
     for j in 1:4N+4
@@ -143,9 +148,9 @@ dz = 0.05
 
 # Initialize fields
   p₀ = 1e5
-  α₀ = 0.01
+  α₀ = 1e-8
   vm₀ = 1.0
-  T₀ = 70 + 273.15
+  T₀ = 99 + 273.15
   
   q = [zi <= Lh ? Qval/(Lh*A_flow) : 0 for zi in z]
 
@@ -210,35 +215,37 @@ dz = 0.05
   select = ["p","α", "vm","T"]
  
   ## Dynamical limits
+  # for n in 1:n_save
+  #   global p
+  #   plots = [plot(z,field_dict[name][n], title=name, formatter=:plain) for name in select]
+  #   xlabel!("t = $(t_save[n])")
+  #   p = plot(plots...)
+  #   display(p)
+  # end
+
+  ## Static limits
+  field_min = Dict()
+  field_max = Dict()
+  
+  for item in field_dict
+    name, field_save = item
+    matrix = hcat(field_save...)
+    field_min[name] = minimum(matrix)
+    field_max[name] = maximum(matrix)
+  end
+  
   for n in 1:n_save
-    global p
-    plots = [plot(z,field_dict[name][n], title=name, formatter=:plain) for name in select]
+    global p 
+    plots = [plot(z,field_dict[name][n], ylims=(0.995*field_min[name], 1.005*field_max[name]), title=name, formatter=:plain) for name in select]
     xlabel!("t = $(t_save[n])")
     p = plot(plots...)
     display(p)
   end
 
-  ## Static limits
-  # field_min = Dict()
-  # field_max = Dict()
-  
-  # for item in field_dict
-  #   name, field_save = item
-  #   matrix = hcat(field_save...)
-  #   field_min[name] = minimum(matrix)
-  #   field_max[name] = maximum(matrix)
-  # end
-  
-  # for n in 1:n_save
-  #   global p 
-  #   plots = [plot(z,field_dict[name][n], ylims=(0.995*field_min[name], 1.005*field_max[name]), title=name, formatter=:plain) for name in select]
-  #   xlabel!("t = $(t_save[n])")
-  #   p = plot(plots...)
-  #   display(p)
-  #   # sleep(1)
-  # end
-
   # simulation = "Backward Upwind Nonconserved NumJac [p α vm]"
   # p[:plot_title] = simulation
   # plot(p)
   # savefig(simulation)
+
+
+  
