@@ -108,7 +108,7 @@ dz = 0.1
   t_save = [0.0]
 
 # Main loop
-  tol = 1e-6
+  tol = 1e-3
   Qk = copy(Qn)
   for n in 1:nt
       global Qk, Qn
@@ -153,10 +153,13 @@ dz = 0.1
 # Plotting
 
 for n in 1:n_save
-   p1 = plot(z_cells, ρ_save[n], title = "ρ")
-   p2 = plot(z_edges, v_save[n], title = "v")
-   p3 = plot(z_cells, U_save[n], title = "U")
-   p  = plot(p1,p2,p3, layout=(3,1), marker=:circle, xlims=(0,L))
-   display(p)
+  #  p1 = plot(z_cells, ρ_save[n], title = "ρ")
+  #  p2 = plot(z_edges, v_save[n], title = "v")
+  #  p3 = plot(z_cells, T_save[n], title = "T")
+   p4 = plot(z_cells, p_save[n], title = "p")
+   xlabel!("t = $(t_save[n])")
+  #  p  = plot(p1,p2,p3,p4, xlims=(0,L))
+  display(p4)
+  #  display(p)
 end
   
