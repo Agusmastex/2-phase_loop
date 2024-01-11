@@ -4,7 +4,7 @@ using LinearAlgebra
 
 tf = 1.0
 dt = 0.01
-dz = 0.1
+dz = 0.05
   
 # Change this
   f = 0
@@ -71,7 +71,6 @@ dz = 0.1
         (ρ - ρn)/dt + upwind_D*(ρ.*v);
         (v - vn)/dt + v.*upwind_D*(v) + (1 ./ (average_D*ρ)) .* forward_D*(p) + safe(0.5*f/D * (v.*v) .+ g);
         (ρ.*U - ρn.*Un)/dt + upwind_D*(ρ.*U.*v) - safe(q) + p.*upwind_D*(v)
-
     ]
   end
 
@@ -138,7 +137,7 @@ dz = 0.1
 
 # Calculate derived fields
   n_save = length(ρ_save)
-  p_save = [(γ-1)*ρ_save[j].*U_save[j]/1e3    for j in 1:n_save]
+  p_save = [(γ-1)*ρ_save[j].*U_save[j]/1e3 for j in 1:n_save]
   T_save = [U_save[j]/Cv .- 273.15 for j in 1:n_save]
 
   field_dict = Dict(
