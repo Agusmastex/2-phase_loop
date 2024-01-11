@@ -153,13 +153,17 @@ dz = 0.1
 # Plotting
 
 for n in 1:n_save
-  #  p1 = plot(z_cells, ρ_save[n], title = "ρ")
-  #  p2 = plot(z_edges, v_save[n], title = "v")
-  #  p3 = plot(z_cells, T_save[n], title = "T")
+   p1 = plot(z_cells, ρ_save[n], title = "ρ")
+   p2 = plot(z_edges, v_save[n], title = "v")
+   p3 = plot(z_cells, U_save[n], title = "U")
    p4 = plot(z_cells, p_save[n], title = "p")
    xlabel!("t = $(t_save[n])")
-  #  p  = plot(p1,p2,p3,p4, xlims=(0,L))
-  display(p4)
-  #  display(p)
+   p  = plot(p1,p2,p3,p4, xlims=(0,L), formatter=:plain)
+  # display(p4)
+   display(p)
 end
   
+  # simulation = "Backward Upwind Primitive Staggered NumJac"
+  # p[:plot_title] = simulation
+  # plot(p)
+  # savefig(simulation)

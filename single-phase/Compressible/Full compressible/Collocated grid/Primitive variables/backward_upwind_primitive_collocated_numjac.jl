@@ -2,15 +2,15 @@ using Plots
 using SparseArrays
 using LinearAlgebra
 
-tf = 0.7
-dt = 0.02
-dz = 0.01
+tf = 1.0
+dt = 0.01
+dz = 0.05
   
 # Change this
-  f = 0.1
+  f = 0
   Qval = 100
   g = 0
-  Δn = 2
+  Δn = 1
 
 # Grid
   L  = 0.5
@@ -56,7 +56,7 @@ dz = 0.01
     p = (γ-1)*ρ.*U
     return [
       (ρ    - ρn    )/dt + upwind_D*(ρ.*v);
-      (ρ.*v - ρn.*vn)/dt + upwind_D*(ρ.*v.*v) + centered_D*p + safe(0.5*f/D*ρ.*v.*v + ρ*g);
+      (ρ.*v - ρn.*vn)/dt + upwind_D*(ρ.*v.*v) + upwind_D*p + safe(0.5*f/D*ρ.*v.*v + ρ*g);
       (ρ.*U - ρn.*Un)/dt + upwind_D*(ρ.*v.*U) - safe(q) + p.*centered_D*v
     ]
   end
@@ -93,7 +93,7 @@ dz = 0.01
   t_save = [0.0]
 
 # Main loop
-  tol = 1e-6
+  tol = 1e-3
   Qk = copy(Qn)
   for n in 1:nt+1
       global Qk, Qn
@@ -137,36 +137,37 @@ dz = 0.01
 
 # Plotting
 
-  select = ["ρ","v","T","p"]
+  select = ["ρ","v","U","p"]
   
   ## Dynamical limits
-  # for n in 1:n_save
-  #   plots = [plot(z,field_dict[name][n], title=name, formatter=:plain) for name in select]
-  #   xlabel!("t = $(t_save[n])")
-  #   p = plot(plots..., layout=(length(select), 1))
-  #   display(p)
-  # end
-
-  ## Static limits
-  field_min = Dict()
-  field_max = Dict()
-  
-  for item in field_dict
-    name, field_save = item
-    matrix = hcat(field_save...)
-    field_min[name] = minimum(matrix)
-    field_max[name] = maximum(matrix)
-  end
-  
   for n in 1:n_save
-    global p 
-    plots = [plot(z,field_dict[name][n], ylims=(field_min[name], field_max[name]), title=name, formatter=:plain) for name in select]
+    global p
+    plots = [plot(z,field_dict[name][n], title=name, formatter=:plain) for name in select]
     xlabel!("t = $(t_save[n])")
     p = plot(plots...)#, layout=(length(select), 1))
     display(p)
   end
 
-  # simulation = "Backward Upwind Primitive NumJac"
-  # p[:plot_title] = simulation
-  # plot(p)
-  # savefig(simulation)
+  ## Static limits
+  # field_min = Dict()
+  # field_max = Dict()
+  
+  # for item in field_dict
+  #   name, field_save = item
+  #   matrix = hcat(field_save...)
+  #   field_min[name] = minimum(matrix)
+  #   field_max[name] = maximum(matrix)
+  # end
+  
+  # for n in 1:n_save
+  #   global p 
+  #   plots = [plot(z,field_dict[name][n], ylims=(field_min[name], field_max[name]), title=name, formatter=:plain) for name in select]
+  #   xlabel!("t = $(t_save[n])")
+  #   p = plot(plots...)#, layout=(length(select), 1))
+  #   display(p)
+  # end
+
+  simulation = "Backward Upwind Primitive Collocated NumJac"
+  p[:plot_title] = simulation
+  plot(p)
+  savefig(simulation)
