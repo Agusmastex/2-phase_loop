@@ -29,7 +29,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     z0_heater = (L - Lh)/2
 
 # Grid
-    N  = 20
+    N  = 100
     dz = L/N
     z  = 0:dz:(L-dz)
 
@@ -107,41 +107,39 @@ and manual implementation of Newton-Raphson employing numerical jacobian
         res = norm(x)
     end
 
-println()
-
-matrix = reshape(Qk,N,4)
-ρ,v,h,p = eachcol(matrix)
-
-
 # Derived fields
 
-T = PropsSI.("T", "P", p, "H", h, "Water") .- 273.15
-Q = PropsSI.("Q", "P", p, "H", h, "Water")
-Q[Q .== -1] .= 0
-ρg = PropsSI.("D", "P", p, "Q", 1, "Water")
-ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
-α = (Q./ρg)./(Q./ρg + (1 .- Q)./ρl)
-p = p .- p[end]
-h = h/1e3
+    matrix = reshape(Qk,N,4)
+    ρ,v,h,p = eachcol(matrix)
 
-field_dict = Dict(
-  "ρ" => ρ,
-  "v" => v,
-  "h" => h,
-  "p" => p,
-  "T" => T,
-  "Q" => Q,
-  "α" => α,
-  "ρg" => ρg,
-  "ρl" => ρl
-)
+    T = PropsSI.("T", "P", p, "H", h, "Water") .- 273.15
+    Q = PropsSI.("Q", "P", p, "H", h, "Water")
+    Q[Q .== -1] .= 0
+    ρg = PropsSI.("D", "P", p, "Q", 1, "Water")
+    ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
+    α = (Q./ρg)./(Q./ρg + (1 .- Q)./ρl)
+    p = p .- p[end]
+    h = h/1e3
 
+# Plotting 
 
-select = ["ρ","α","T","p"]
+    field_dict = Dict(
+    "ρ" => ρ,
+    "v" => v,
+    "h" => h,
+    "p" => p,
+    "T" => T,
+    "Q" => Q,
+    "α" => α,
+    "ρg" => ρg,
+    "ρl" => ρl
+    )
 
-fields = [field_dict[key] for key in select]
-plots = plot_this(fields, select)
-for p in plots
-    vline!(p, [z0_heater,z0_heater+Lh])
-end
-plot(plots...)
+    select = ["ρ","α","T","p"]
+
+    fields = [field_dict[key] for key in select]
+    plots = plot_this(fields, select)
+    for p in plots
+        vline!(p, [z0_heater,z0_heater+Lh])
+    end
+    plot(plots...)
