@@ -29,7 +29,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     z0_heater = (L - Lh)/2
 
 # Grid
-    N  = 100
+    N  = 20
     dz = L/N
     z  = 0:dz:(L-dz)
 
@@ -40,7 +40,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     S  = zeros(N)    
     S[z0_heater .< z .< z0_heater + Lh] .=  Qh/(A*Lh)
     f  = 0.02*ones(N)
-    T_subcooling = 10
+    ΔT_subcooling = 10
 
 # Upwind difference matrix
     D = spdiagm(
