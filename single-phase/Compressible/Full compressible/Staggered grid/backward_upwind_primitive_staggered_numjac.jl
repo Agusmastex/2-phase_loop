@@ -3,8 +3,8 @@ using SparseArrays
 using LinearAlgebra
 
 tf = 1.0
-dt = 0.01
-dz = 0.05
+dt = 0.005
+dz = 0.01
   
 # Change this
   f = 0
@@ -51,6 +51,7 @@ dz = 0.05
   )
   average_D[end,end] = 2
   average_D = 0.5 * dropzeros(average_D)
+
 
   function safe(vector)
     return [0; vector[2:end]]
@@ -140,14 +141,14 @@ dz = 0.05
   p_save = [(γ-1)*ρ_save[j].*U_save[j]/1e3 for j in 1:n_save]
   T_save = [U_save[j]/Cv .- 273.15 for j in 1:n_save]
 
-  field_dict = Dict(
-    "ρ" => ρ_save,
-    "v" => v_save,
-    "U" => U_save,
+  # field_dict = Dict(
+  #   "ρ" => ρ_save,
+  #   "v" => v_save,
+  #   "U" => U_save,
 
-    "p" => p_save,
-    "T" => T_save
-  )
+  #   "p" => p_save,
+  #   "T" => T_save
+  # )
 
 # Plotting
 
@@ -166,3 +167,6 @@ end
   # p[:plot_title] = simulation
   # plot(p)
   # savefig(simulation)
+
+  ρ_staggered = ρ_save[end]
+  U_staggered = U_save[end]

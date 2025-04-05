@@ -72,7 +72,7 @@ dz = 0.05
   end
     
   T_triple = 273.16
-  function U_liq(T,p)
+  function U_liq(T,x)
     if T < T_boil
       return Cp_liq*(T - T_triple)
     else

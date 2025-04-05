@@ -3,8 +3,8 @@ using SparseArrays
 using LinearAlgebra
 
 tf = 1.0
-dt = 0.01
-dz = 0.05
+dt = 0.005
+dz = 0.01
   
 # Change this
   f = 0
@@ -79,7 +79,8 @@ dz = 0.05
   T0 = 110 + 273.15
   U0 = Cv*T0
   
-  q = [zi <= Lh ? Qval/(Lh*A_flow) : 0 for zi in z]
+  # q = [zi <= Lh ? Qval/(Lh*A_flow) : 0 for zi in z]
+  q = [zi < Lh ? Qval/(Lh*A_flow) : 0 for zi in z]
 
   ρ_initial = ρ0*ones(N+1)
   v_initial = v0*ones(N+1)
@@ -140,7 +141,12 @@ dz = 0.05
   select = ["ρ","v","U","p"]
   
   ## Dynamical limits
-  for n in 1:n_save
+
+  # if length(select) <= 3
+  #   layt = (length(select))
+  # end
+
+  for n in 1:10:n_save
     global p
     plots = [plot(z,field_dict[name][n], title=name, formatter=:plain) for name in select]
     xlabel!("t = $(t_save[n])")
@@ -167,7 +173,10 @@ dz = 0.05
   #   display(p)
   # end
 
-  simulation = "Backward Upwind Primitive Collocated NumJac"
-  p[:plot_title] = simulation
-  plot(p)
-  savefig(simulation)
+  # simulation = "Backward Upwind Primitive Collocated NumJac"
+  # p[:plot_title] = simulation
+  # plot(p)
+  # savefig(simulation)
+
+  ρ_collocated = ρ_save[end]
+  U_collocated = U_save[end]
