@@ -23,9 +23,9 @@ and manual implementation of Newton-Raphson employing numerical jacobian
   end
 
 # Geometry
-    d = 9.1e-3
+    D = 9.1e-3
     L = 0.5
-    Lh = 0.2*L
+    Lh = L
     z0_heater = (L - Lh)/2
 
 # Grid
@@ -37,19 +37,27 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     # Upstream conditions
     v0 = 0.5        
     p0 = 1e5
-    T_sat = PropsSI("T", "P", p0, "Q", 0, "Water")
-    ΔT_subcooling = 10
+    ΔT_subcooling = 0.1
     T0 = T_sat - ΔT_subcooling
     h0 = PropsSI("H", "P", p0, "T", T0, "Water")
     ρ0 = PropsSI("D", "P", p0, "T", T0, "Water")
+    # Thermodynamic constants
+    T_sat = PropsSI("T", "P", p0, "Q", 0, "Water")
+    hfg = 
+        PropsSI("H", "P", p0, "Q", 1, "Water") - 
+        PropsSI("H", "P", p0, "Q", 0, "Water")
+    Cp = PropsSI("CPMASS", "P", p0, "Q", 1, "Water")
     # True constants
-    A = 0.25*π*d^2
-    g = 9.8
-    rugosity = 0
+    A  = 0.25*π*D^2
+    g  = 0
     # Heat input
-    Qh = 1225
+    x_target = 0.01
+    m_dot = ρ0*v0*A
+    Qh = m_dot*(x_target*hfg + Cp*ΔT_subcooling)
     S  = zeros(N)    
     S[z0_heater .< z .< z0_heater + Lh] .=  Qh/(A*Lh)
+    # Friction factor
+    f  = 0.0*ones(N)
 
 # Upwind difference matrix
     D = spdiagm(
@@ -61,26 +69,14 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 # Equation of state
     f_hat(h,p) = PropsSI("D", "H", h, "P", p, "Water")
 
-# Friction factor
-
-  function f(Re)
-    f1 = (-2.457*log((7 / Re)^0.9 + 0.27*rugosity/d))^16
-    f2 = (37530 / Re)^12
-    return 8*((8 / Re)^12 + (f1 + f2)^(-1.5))^(1/12)
-  end
-
-
 # Root function
     function F(Q)
         matrix = reshape(Q,N,4)
         ρ,v,h,p = eachcol(matrix)
 
-        μ  = PropsSI.("V","H",h,"P",p,"Water")
-        Re = ρ.*v*d./μ
-
         F_mass = D*(ρ.*v);
-        F_momentum = v.*D*v + 1 ./ ρ .* D*p + 0.5*f.(Re)/d.*v.*abs.(v) .+ g;
-        F_energy = D*(ρ.*h.*v) - v.*D*p - S;
+        F_momentum = v.*D*v + 1 ./ ρ .* D*p + 0.5*f.*v.*abs.(v) .+ g;
+        F_energy = D*(ρ.*h.*v) - 0*v.*D*p - S;
         F_eos = ρ - f_hat.(h,p)
 
         F_mass[1]     = ρ[1] - ρ0
@@ -131,28 +127,31 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     ρg = PropsSI.("D", "P", p, "Q", 1, "Water")
     ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
     α = (Q./ρg)./(Q./ρg + (1 .- Q)./ρl)
-    p = p .- p[end]
-    h = h/1e3
+    # p = p .- p[end]
+    # h = h/1e3
 
-# Plotting 
+# Analytical solution
 
-    field_dict = Dict(
-    "ρ" => ρ,
-    "v" => v,
-    "h" => h,
-    "p" => p,
-    "T" => T,
-    "Q" => Q,
-    "α" => α,
-    "ρg" => ρg,
-    "ρl" => ρl
-    )
+H = h0 .+ Qh/m_dot*z/Lh
+rhog = PropsSI("D", "P", p0, "Q", 1, "Water")
+rhol = PropsSI("D", "P", p0, "Q", 0, "Water")
+slope = Qh/m_dot/hfg*(rhol/rhog - 1)
+V = v0 .+ v0*slope*z/Lh
+P = p0 .- ρ0*v0^2*slope*z/Lh
+RHO = m_dot./(A*V)
 
-    select = ["ρ","α","T","p"]
+function myplot(field, name)
+    return plot(z, field, title=name, marker=:circle, markersize=1.5)
+end
 
-    fields = [field_dict[key] for key in select]
-    plots = plot_this(fields, select)
-    for p in plots
-        vline!(p, [z0_heater,z0_heater+Lh])
-    end
-    plot(plots...)
+p1 = myplot(ρ,"ρ")
+plot!(z, RHO)
+p2 = myplot(v,"v")
+plot!(z, V)
+p3 = myplot(h,"h")
+plot!(z, H)
+p4 = myplot(p,"p")
+plot!(z, P)
+
+plots = [p1, p2, p3, p4]
+plot(plots...)
