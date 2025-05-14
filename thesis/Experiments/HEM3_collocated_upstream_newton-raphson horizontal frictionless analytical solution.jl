@@ -4,10 +4,8 @@ using CoolProp
 using Plots
 
 """ 
-Solves the 2-phase steady state vertical pipe flow with constant upstream boundary conditions
-using the 3-equation Homogeneous Equilibrium Model (HEM)
-upwind finite difference
-and manual implementation of Newton-Raphson employing numerical jacobian
+Experiment with the horizontal frictionless case
+The slope of analytical velocity is off by a factor of 1.3 and I haven't figured out why
 """
 
 # Auxiliary functions 
@@ -38,18 +36,18 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     v0 = 0.5        
     p0 = 1e5
     ΔT_subcooling = 0.1
+    T_sat = PropsSI("T", "P", p0, "Q", 0, "Water")
     T0 = T_sat - ΔT_subcooling
     h0 = PropsSI("H", "P", p0, "T", T0, "Water")
     ρ0 = PropsSI("D", "P", p0, "T", T0, "Water")
     # Thermodynamic constants
-    T_sat = PropsSI("T", "P", p0, "Q", 0, "Water")
     hfg = 
         PropsSI("H", "P", p0, "Q", 1, "Water") - 
         PropsSI("H", "P", p0, "Q", 0, "Water")
     Cp = PropsSI("CPMASS", "P", p0, "Q", 1, "Water")
     # True constants
     A  = 0.25*π*D^2
-    g  = 0
+    g  = 0              # Horizontal pipe
     # Heat input
     x_target = 0.01
     m_dot = ρ0*v0*A
@@ -57,7 +55,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     S  = zeros(N)    
     S[z0_heater .< z .< z0_heater + Lh] .=  Qh/(A*Lh)
     # Friction factor
-    f  = 0.0*ones(N)
+    f  = 0.0*ones(N)    # Frictionless pipe
 
 # Upwind difference matrix
     D = spdiagm(
@@ -135,17 +133,23 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 H = h0 .+ Qh/m_dot*z/Lh
 rhog = PropsSI("D", "P", p0, "Q", 1, "Water")
 rhol = PropsSI("D", "P", p0, "Q", 0, "Water")
+RHO = ((H .- h0)/hfg*(1/rhog - 1/rhol) .+ 1/rhol).^(-1)
 slope = Qh/m_dot/hfg*(rhol/rhog - 1)
-V = v0 .+ v0*slope*z/Lh
+# slope = 1.3*Qh/(A*hfg)*(1/rhog - 1/rhol)
+# V = v0 .+ v0*slope*(z/Lh)
+V = m_dot/A ./ RHO
+# V = Qh/(A*hfg)*(z/Lh)*(1/rhog - 1/rhol) .+ v0
 P = p0 .- ρ0*v0^2*slope*z/Lh
-RHO = m_dot./(A*V)
+# RHO = m_dot./(A*V)
 
 function myplot(field, name)
     return plot(z, field, title=name, marker=:circle, markersize=1.5)
 end
 
-p1 = myplot(ρ,"ρ")
-plot!(z, RHO)
+# p1 = myplot(ρ,"ρ")
+# plot!(z, RHO)
+p1 = myplot(1 ./ ρ,"ρ")
+plot!(z, 1 ./ RHO)
 p2 = myplot(v,"v")
 plot!(z, V)
 p3 = myplot(h,"h")
