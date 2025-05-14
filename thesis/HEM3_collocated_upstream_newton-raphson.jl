@@ -23,10 +23,12 @@ and manual implementation of Newton-Raphson employing numerical jacobian
   end
 
 # Geometry
-    d = 9.1e-3
-    L = 0.5
-    Lh = 0.2*L
-    z0_heater = (L - Lh)/2
+    d_pipe = 38.1e-3
+    d_rod  = 19.05e-3
+    Dh = d_pipe - d_rod
+    L = 5.19
+    Lh = 3
+    z0_heater = 0.203
 
 # Grid
     N  = 20
@@ -43,7 +45,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     h0 = PropsSI("H", "P", p0, "T", T0, "Water")
     ρ0 = PropsSI("D", "P", p0, "T", T0, "Water")
     # True constants
-    A = 0.25*π*d^2
+    A = 0.25*π*(d_pipe^2 - d_rod^2)
     g = 9.8
     rugosity = 0
     # Heat input
@@ -57,6 +59,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
          0 =>  ones(N)
     )
     D = D/dz
+    # D = collect(D)
 
 # Equation of state
     f_hat(h,p) = PropsSI("D", "H", h, "P", p, "Water")
@@ -64,7 +67,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 # Friction factor
 
   function f(Re)
-    f1 = (-2.457*log((7 / Re)^0.9 + 0.27*rugosity/d))^16
+    f1 = (-2.457*log((7 / Re)^0.9 + 0.27*rugosity/Dh))^16
     f2 = (37530 / Re)^12
     return 8*((8 / Re)^12 + (f1 + f2)^(-1.5))^(1/12)
   end
@@ -76,10 +79,10 @@ and manual implementation of Newton-Raphson employing numerical jacobian
         ρ,v,h,p = eachcol(matrix)
 
         μ  = PropsSI.("V","H",h,"P",p,"Water")
-        Re = ρ.*v*d./μ
+        Re = ρ.*v*Dh./μ
 
         F_mass = D*(ρ.*v);
-        F_momentum = v.*D*v + 1 ./ ρ .* D*p + 0.5*f.(Re)/d.*v.*abs.(v) .+ g;
+        F_momentum = v.*D*v + 1 ./ ρ .* D*p + 0.5*f.(Re)/Dh.*v.*abs.(v) .+ g;
         F_energy = D*(ρ.*h.*v) - v.*D*p - S;
         F_eos = ρ - f_hat.(h,p)
 
@@ -92,9 +95,14 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     end
 
 # Jacobian
-    e(j) = I(4N)[:,j]
-    δ = 1e-6
     J(Q) = hcat(((F(Q + δ*e(j)) - F(Q))/δ for j in 1:4N)...)
+    function jacobian(Q)
+        e(j) = I(4N)[:,j]
+        δ = 1e-6
+        FQk = F(Q)
+        J = hcat(((F(Q + δ*e(j)) - FQk)/δ for j in 1:4N)...)
+        return J
+    end
 
 
 # Initialize
@@ -131,8 +139,30 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     ρg = PropsSI.("D", "P", p, "Q", 1, "Water")
     ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
     α = (Q./ρg)./(Q./ρg + (1 .- Q)./ρl)
-    p = p .- p[end]
-    h = h/1e3
+    # p = p .- p[end]
+    p = p/1e3
+    # h = h/1e3
+
+# Experimental data
+    ports = [0, 79.3, 128.7, 168, 214.3, 247.3]
+    z_exp = ports*Dh
+    T_exp = [
+        124.77099193628348,
+        131.9847321842359 ,
+        141.03053432113606,
+        148.8167927627915 ,
+        149.04580213690016,
+        148.7595417296565 ,
+    ]
+    P_exp = [
+        496.7938914759427 ,
+        482.8244262338762 ,
+        474.12213641094945,
+        467.4809152302949 ,
+        460.38167879580203,
+        455.49618042527464,
+    ]
+
 
 # Plotting 
 
@@ -155,4 +185,13 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     for p in plots
         vline!(p, [z0_heater,z0_heater+Lh])
     end
-    plot(plots...)
+ p = plot(plots...)
+#  display(p)
+
+# p1 = plot(z,T, title="T")
+# plot!(z_exp, T_exp, marker=:circle, linewidth=0)
+# p2 = plot(z,p, title="P")
+# plot!(z_exp, P_exp, marker=:circle, linewidth=0)
+# plot(p1, p2)
+
+end
