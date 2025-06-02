@@ -37,7 +37,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 
 # Constants
     # Upstream conditions
-    v0 = 0.5        
+    v0 = 0.2        
     p0 = 1e5
     T_sat = PropsSI("T", "P", p0, "Q", 0, "Water")
     ΔT_subcooling = 10
@@ -95,13 +95,12 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     end
 
 # Jacobian
-    J(Q) = hcat(((F(Q + δ*e(j)) - F(Q))/δ for j in 1:4N)...)
-    function jacobian(Q)
+    function J(Q)
         e(j) = I(4N)[:,j]
         δ = 1e-6
         FQk = F(Q)
-        J = hcat(((F(Q + δ*e(j)) - FQk)/δ for j in 1:4N)...)
-        return J
+        Jac = hcat(((F(Q + δ*e(j)) - FQk)/δ for j in 1:4N)...)
+        return Jac
     end
 
 
@@ -193,5 +192,3 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 # p2 = plot(z,p, title="P")
 # plot!(z_exp, P_exp, marker=:circle, linewidth=0)
 # plot(p1, p2)
-
-end
