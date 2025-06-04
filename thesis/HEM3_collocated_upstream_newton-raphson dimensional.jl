@@ -7,7 +7,7 @@ using Plots
 Solves the 2-phase steady state vertical pipe flow with constant upstream boundary conditions
 using the 3-equation Homogeneous Equilibrium Model (HEM)
 upwind finite difference
-nondimensional version of the equations
+primitive dimensional variables
 and manual implementation of Newton-Raphson employing numerical jacobian
 """
 
@@ -28,13 +28,13 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     d_rod  = 19.05e-3
     Dh = d_pipe - d_rod
     L = 5.19
-    Lh = 3/L
-    z0_heater = 0.203/L
+    Lh = 3
+    z0_heater = 0.203
 
 # Grid
     N  = 20
-    dz = 1/N
-    z  = 0:dz:(1-dz)
+    dz = L/N
+    z  = 0:dz:(L-dz)
 
 # Constants
     # Upstream conditions
@@ -51,15 +51,8 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     rugosity = 0
     # Heat input
     Qh = 1225
-    Qh = 1275
     S  = zeros(N)    
-    S[z0_heater .< z .< z0_heater + Lh] .=  1
-    # Derived quantities
-    m_dot = ρ0*v0*A
-    h_Lh = h0 + Qh/m_dot
-    # Dimensionless groups
-    Fr = v0^2/(g*L)
-    Ec = v0^2/(h_Lh - h0)
+    S[z0_heater .< z .< z0_heater + Lh] .=  Qh/(A*Lh)
 
 # Upwind difference matrix
     D = spdiagm(
@@ -67,6 +60,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
          0 =>  ones(N)
     )
     D = D/dz
+    # D = collect(D)
 
 # Equation of state
     f_hat(h,p) = PropsSI("D", "H", h, "P", p, "Water")
@@ -76,8 +70,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
   function f(Re)
     f1 = (-2.457*log((7 / Re)^0.9 + 0.27*rugosity/Dh))^16
     f2 = (37530 / Re)^12
-    # return 8*((8 / Re)^12 + (f1 + f2)^(-1.5))^(1/12)
-    return 0.02
+    return 8*((8 / Re)^12 + (f1 + f2)^(-1.5))^(1/12)
   end
 
 
@@ -86,18 +79,18 @@ and manual implementation of Newton-Raphson employing numerical jacobian
         matrix = reshape(Q,N,4)
         ρ,v,h,p = eachcol(matrix)
 
-        # μ  = PropsSI.("V","H",h,"P",p,"Water")
-        # Re = ρ.*v*Dh./μ
+        μ  = PropsSI.("V","H",h,"P",p,"Water")
+        Re = ρ.*v*Dh./μ
 
-        F_mass = D*(ρ.*v)
-        F_momentum = v.*D*v + 1/Fr * 1 ./ ρ .* D*p + 0.5*f.(0)*L/Dh.*v.*abs.(v) .+ 1/Fr
-        F_energy = D*(ρ.*h.*v) - Ec/Fr * v.*D*p - S/Lh
-        F_eos = ρ0*ρ - f_hat.(h0 .+ (h_Lh - h0)*h, p0 .+ ρ0*g*L*p)
+        F_mass = D*(ρ.*v);
+        F_momentum = v.*D*v + 1 ./ ρ .* D*p + 0.5*f.(Re)/Dh.*v.*abs.(v) .+ g;
+        F_energy = D*(ρ.*h.*v) - v.*D*p - S;
+        F_eos = ρ - f_hat.(h,p)
 
-        F_mass[1]     = ρ[1] - 1
-        F_momentum[1] = v[1] - 1
-        F_energy[1]   = h[1] - 0
-        F_eos[1]      = p[1] - 0
+        F_mass[1]     = ρ[1] - ρ0
+        F_momentum[1] = v[1] - v0
+        F_energy[1]   = h[1] - h0
+        F_eos[1]      = p[1] - p0
 
         return [F_mass; F_momentum; F_energy; F_eos]
     end
@@ -113,10 +106,10 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 
 
 # Initialize
-    ρ_init = ones(N)
-    v_init = ones(N)
-    h_init = zeros(N)
-    p_init = zeros(N)
+    ρ_init = ρ0*ones(N)
+    v_init = v0*ones(N)
+    h_init = h0*ones(N)
+    p_init = p0*ones(N)
 
     Qk = [ρ_init; v_init; h_init; p_init]
 
@@ -140,11 +133,6 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     matrix = reshape(Qk,N,4)
     ρ,v,h,p = eachcol(matrix)
 
-    ρ = ρ0*ρ
-    v = v0*v
-    h = h0 .+ (h_Lh - h0)*h
-    p = p0 .+ ρ0*g*L*p
-
     T = PropsSI.("T", "P", p, "H", h, "Water") .- 273.15
     Q = PropsSI.("Q", "P", p, "H", h, "Water")
     Q[Q .== -1] .= 0
@@ -153,12 +141,28 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     α = (Q./ρg)./(Q./ρg + (1 .- Q)./ρl)
     p = p .- p[end]
     p = p/1e3
-    h = h/1e3
+    # h = h/1e3
 
-    dz = L/N
-    z  = 0:dz:(L-dz)
-    Lh = Lh*L
-    z0_heater = z0_heater*L
+# Experimental data
+    ports = [0, 79.3, 128.7, 168, 214.3, 247.3]
+    z_exp = ports*Dh
+    T_exp = [
+        124.77099193628348,
+        131.9847321842359 ,
+        141.03053432113606,
+        148.8167927627915 ,
+        149.04580213690016,
+        148.7595417296565 ,
+    ]
+    P_exp = [
+        496.7938914759427 ,
+        482.8244262338762 ,
+        474.12213641094945,
+        467.4809152302949 ,
+        460.38167879580203,
+        455.49618042527464,
+    ]
+
 
 # Plotting 
 
@@ -181,7 +185,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     for p in plots
         vline!(p, [z0_heater,z0_heater+Lh])
     end
- plot(plots...)
+ p = plot(plots...)
 #  display(p)
 
 # p1 = plot(z,T, title="T")
