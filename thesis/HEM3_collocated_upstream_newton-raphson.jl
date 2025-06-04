@@ -51,7 +51,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     rugosity = 0
     # Heat input
     Qh = 1225
-    Qh = 1275
+    # Qh = 20000
     S  = zeros(N)    
     S[z0_heater .< z .< z0_heater + Lh] .=  1
     # Derived quantities
@@ -76,8 +76,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
   function f(Re)
     f1 = (-2.457*log((7 / Re)^0.9 + 0.27*rugosity/Dh))^16
     f2 = (37530 / Re)^12
-    # return 8*((8 / Re)^12 + (f1 + f2)^(-1.5))^(1/12)
-    return 0.02
+    return 8*((8 / Re)^12 + (f1 + f2)^(-1.5))^(1/12)
   end
 
 
@@ -86,11 +85,11 @@ and manual implementation of Newton-Raphson employing numerical jacobian
         matrix = reshape(Q,N,4)
         ρ,v,h,p = eachcol(matrix)
 
-        # μ  = PropsSI.("V","H",h,"P",p,"Water")
-        # Re = ρ.*v*Dh./μ
+        μ  = PropsSI.("V", "H", h0 .+ (h_Lh - h0)*h,"P", p0 .+ ρ0*g*L*p, "Water")
+        Re = ρ0*v0 * ρ.*v*Dh./μ
 
         F_mass = D*(ρ.*v)
-        F_momentum = v.*D*v + 1/Fr * 1 ./ ρ .* D*p + 0.5*f.(0)*L/Dh.*v.*abs.(v) .+ 1/Fr
+        F_momentum = v.*D*v + 1/Fr * 1 ./ ρ .* D*p + 0.5*f.(Re)*L/Dh.*v.*abs.(v) .+ 1/Fr
         F_energy = D*(ρ.*h.*v) - Ec/Fr * v.*D*p - S/Lh
         F_eos = ρ0*ρ - f_hat.(h0 .+ (h_Lh - h0)*h, p0 .+ ρ0*g*L*p)
 
@@ -152,7 +151,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
     α = (Q./ρg)./(Q./ρg + (1 .- Q)./ρl)
     p = p .- p[end]
-    p = p/1e3
+    p = p/1e2
     h = h/1e3
 
     dz = L/N

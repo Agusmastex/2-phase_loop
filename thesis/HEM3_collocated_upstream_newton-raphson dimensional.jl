@@ -140,8 +140,8 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
     α = (Q./ρg)./(Q./ρg + (1 .- Q)./ρl)
     p = p .- p[end]
-    p = p/1e3
-    # h = h/1e3
+    p = p/1e2 #kPa
+    # h = h/1e3 #kJ
 
 # Experimental data
     ports = [0, 79.3, 128.7, 168, 214.3, 247.3]
