@@ -1,8 +1,8 @@
 include("run_experiment.jl")
 
 root = "C:\\Users\\mateo\\Files\\Investigación\\2-phase_loop\\JJI+i"
-data_folder = "ooi_2019_1_data"
-results_folder ="ooi_2019_1_results"
+data_folder = "relap_2016_data/"
+results_folder ="relap_2016_results/"
 cd(root * "\\" * data_folder)
 
 for folder in readdir()

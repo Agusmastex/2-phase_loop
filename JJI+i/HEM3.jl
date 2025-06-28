@@ -11,7 +11,8 @@ nondimensional version of the equations
 and manual implementation of Newton-Raphson employing numerical jacobian
 """
 
-function run(P_in, G, ΔT_sub, q_flux)
+# function run(P_in, G, ΔT_sub, q_flux) # mass flux given
+function run(P_in, j_in, ΔT_sub, q_flux) # velocity given
 
 # Geometry
     L = 5.03
@@ -33,7 +34,8 @@ function run(P_in, G, ΔT_sub, q_flux)
     T0 = T_sat - ΔT_sub
     h0 = PropsSI("H", "P", p0, "T", T0, "Water")
     ρ0 = PropsSI("D", "P", p0, "T", T0, "Water")
-    v0 = G/ρ0
+    # v0 = G/ρ0 # mass flux given
+    v0 = j_in # velocity given
     # True constants
     A = 0.25*π*(d_outer^2 - d_inner^2)
     g = 9.8
