@@ -96,7 +96,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
   function f(Re)
     f1 = (-2.457*log((7 / Re)^0.9 + 0.27*rugosity/Dh))^16
     f2 = (37530 / Re)^12
-    # return 8*((8 / Re)^12 + (f1 + f2)^(-1.5))^(1/12)
+    return 8*((8 / Re)^12 + (f1 + f2)^(-1.5))^(1/12)
     return 0.2
   end
 
@@ -106,13 +106,16 @@ and manual implementation of Newton-Raphson employing numerical jacobian
         matrix = reshape(Q,N+1,4)
         ρ,v,h,p = eachcol(matrix)
 
-        # μ  = PropsSI.("V","H",h,"P",p,"Water")
-        # Re = ρ.*v*Dh./μ
+        h_dim = h_half .+ (h_Lh - h_half)*h
+        p_dim = p_half .+ ρ_half*g*L*p
+
+        μ  = PropsSI.("V","H",h_dim,"P",p_dim,"Water")
+        Re = ρ.*v*Dh./μ
 
         F_mass = D_upw*(ρ.*v)
-        F_momentum = v.*D_upw*v + 1/Fr * (D_center*p)./(M*ρ) + 0.5*f.(1)*L/Dh.*v.*abs.(v) .+ 1/Fr
+        F_momentum = v.*D_upw*v + 1/Fr * (D_center*p)./(M*ρ) + 0.5*f.(Re)*L/Dh.*v.*abs.(v) .+ 1/Fr
         F_energy = D_upw*(ρ.*h.*v) - Ec/Fr * (M*v).*(D_center*p) - S/Lh
-        F_eos = ρ_half*ρ - f_hat.(h_half .+ (h_Lh - h_half)*h, p_half .+ ρ_half*g*L*p)
+        F_eos = ρ_half*ρ - f_hat.(h_dim, p_dim)
 
         F_mass[1]     = ρ[1] + ρ[2] - 2
         F_momentum[1] = v[1] - 1
