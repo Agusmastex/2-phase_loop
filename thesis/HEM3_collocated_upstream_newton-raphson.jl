@@ -24,12 +24,12 @@ and manual implementation of Newton-Raphson employing numerical jacobian
   end
 
 # Geometry
-    d_pipe = 38.1e-3
-    d_rod  = 19.05e-3
-    Dh = d_pipe - d_rod
-    L = 5.19
-    Lh = 3/L
-    z0_heater = 0.203/L
+    L = 5.03
+    d_inner = 19.05e-3
+    d_outer = 38.10e-3
+    Dh = d_outer - d_inner
+    Lh = 3.0/L
+    z0_heater = 0.0/L
 
 # Grid
     N  = 20
@@ -38,20 +38,20 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 
 # Constants
     # Upstream conditions
-    v0 = 0.2        
-    p0 = 1e5
+    v0 = 0.24
+    p0 = 498e3
     T_sat = PropsSI("T", "P", p0, "Q", 0, "Water")
-    ΔT_subcooling = 10
+    ΔT_subcooling = 30
     T0 = T_sat - ΔT_subcooling
     h0 = PropsSI("H", "P", p0, "T", T0, "Water")
     ρ0 = PropsSI("D", "P", p0, "T", T0, "Water")
     # True constants
-    A = 0.25*π*(d_pipe^2 - d_rod^2)
+    A = 0.25*π*(d_outer^2 - d_inner^2)
     g = 9.8
     rugosity = 0
     # Heat input
-    Qh = 1225
-    # Qh = 20000
+    q_flux = 156e3
+    Qh = q_flux*Lh*L*π*d_inner
     S  = zeros(N)    
     S[z0_heater .< z .< z0_heater + Lh] .=  1
     # Derived quantities
@@ -181,10 +181,3 @@ and manual implementation of Newton-Raphson employing numerical jacobian
         vline!(p, [z0_heater,z0_heater+Lh])
     end
  plot(plots...)
-#  display(p)
-
-# p1 = plot(z,T, title="T")
-# plot!(z_exp, T_exp, marker=:circle, linewidth=0)
-# p2 = plot(z,p, title="P")
-# plot!(z_exp, P_exp, marker=:circle, linewidth=0)
-# plot(p1, p2)

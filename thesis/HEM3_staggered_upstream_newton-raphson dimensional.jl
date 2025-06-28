@@ -7,14 +7,14 @@ using Plots
 Solves the 2-phase steady state vertical pipe flow with constant upstream boundary conditions
 using the 3-equation Homogeneous Equilibrium Model (HEM)
 upwind staggered finite volume
-nondimensional version of the equations
+primitive dimensional variables
 and manual implementation of Newton-Raphson employing numerical jacobian
 """
 
 # Auxiliary functions 
 
   function plot_this(list, names)
-    plots = [plot(name == "v" ? z_vect : z_scalar, item, 
+    plots = [plot(z, item, 
                 title=name, 
                 marker=:circle,
                 markersize=1.5,
@@ -24,43 +24,36 @@ and manual implementation of Newton-Raphson employing numerical jacobian
   end
 
 # Geometry
-    L = 5.03
-    d_inner = 19.05e-3
-    d_outer = 38.10e-3
-    Dh = d_outer - d_inner
-    Lh = 3.0/L
-    z0_heater = 0.0/L
+    d_pipe = 38.1e-3
+    d_rod  = 19.05e-3
+    Dh = d_pipe - d_rod
+    L = 5.19
+    Lh = 3
+    z0_heater = 0.203
 
 # Grid
     N  = 20
-    dz = 1/N
-    z_scalar = -dz/2:dz:(1 - dz/2)
-    z_vect   = 0:dz:1
+    dz = L/N
+    z_scalar = -dz/2:dz:(L - dz/2)
+    z_vect   = 0:dz:L
 
 # Constants
     # Upstream conditions
-    v_half = 0.24
-    p_half = 498e3
+    v_half = 0.2        
+    p_half = 1e5
     T_sat = PropsSI("T", "P", p_half, "Q", 0, "Water")
-    ΔT_subcooling = 30
+    ΔT_subcooling = 10
     T_half = T_sat - ΔT_subcooling
     h_half = PropsSI("H", "P", p_half, "T", T_half, "Water")
     ρ_half = PropsSI("D", "P", p_half, "T", T_half, "Water")
     # True constants
-    A = 0.25*π*(d_outer^2 - d_inner^2)
+    A = 0.25*π*(d_pipe^2 - d_rod^2)
     g = 9.8
     rugosity = 0
     # Heat input
-    q_flux = 156e3
-    Qh = q_flux*Lh*L*π*d_inner
+    Qh = 1225
     S  = zeros(N+1)    
-    S[z0_heater .< z_scalar .< z0_heater + Lh] .=  1
-    # Derived quantities
-    m_dot = ρ_half*v_half*A
-    h_Lh = h_half + Qh/m_dot
-    # Dimensionless groups
-    Fr = v_half^2/(g*L)
-    Ec = v_half^2/(h_Lh - h_half)
+    S[z0_heater .< z_scalar .< z0_heater + Lh] .=  Qh/(A*Lh)
 
 # Upwind difference matrix
     D_upw = spdiagm(
@@ -106,18 +99,18 @@ and manual implementation of Newton-Raphson employing numerical jacobian
         matrix = reshape(Q,N+1,4)
         ρ,v,h,p = eachcol(matrix)
 
-        # μ  = PropsSI.("V","H",h,"P",p,"Water")
-        # Re = ρ.*v*Dh./μ
+        μ  = PropsSI.("V","H",h,"P",p,"Water")
+        Re = ρ.*v*Dh./μ
 
-        F_mass = D_upw*(ρ.*v)
-        F_momentum = v.*D_upw*v + 1/Fr * (D_center*p)./(M*ρ) + 0.5*f.(1)*L/Dh.*v.*abs.(v) .+ 1/Fr
-        F_energy = D_upw*(ρ.*h.*v) - Ec/Fr * (M*v).*(D_center*p) - S/Lh
-        F_eos = ρ_half*ρ - f_hat.(h_half .+ (h_Lh - h_half)*h, p_half .+ ρ_half*g*L*p)
+        F_mass = D_upw*(ρ.*v);
+        F_momentum = v.*D_upw*v + (D_center*p)./(M*ρ) + 0.5*f.(Re)/Dh.*v.*abs.(v) .+ g;
+        F_energy = D_upw*(ρ.*h.*v) - (M*v).*(D_center*p) - S;
+        F_eos = ρ - f_hat.(h,p)
 
-        F_mass[1]     = ρ[1] + ρ[2] - 2
-        F_momentum[1] = v[1] - 1
-        F_energy[1]   = h[1] + h[2]
-        F_eos[1]      = p[1] + p[2]
+        F_mass[1]     = ρ[1] + ρ[2] - 2*ρ_half
+        F_momentum[1] = v[1] - v_half 
+        F_energy[1]   = h[1] + h[2] - 2*h_half
+        F_eos[1]      = p[1] + p[2] - 2*p_half
 
         return [F_mass; F_momentum; F_energy; F_eos]
     end
@@ -133,10 +126,10 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 
 
 # Initialize
-    ρ_init = ones(N+1)
-    v_init = ones(N+1)
-    h_init = zeros(N+1)
-    p_init = zeros(N+1)
+    ρ_init = ρ_half*ones(N+1)
+    v_init = v_half*ones(N+1)
+    h_init = h_half*ones(N+1)
+    p_init = p_half*ones(N+1)
 
     Qk = [ρ_init; v_init; h_init; p_init]
 
@@ -159,11 +152,6 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 
     matrix = reshape(Qk,N+1,4)
     ρ,v,h,p = eachcol(matrix)
-
-    ρ = ρ_half*ρ
-    v = v_half*v
-    h = h_half .+ (h_Lh - h_half)*h
-    p = p_half .+ ρ_half*g*L*p
 
     T = PropsSI.("T", "P", p, "H", h, "Water") .- 273.15
     Q = PropsSI.("Q", "P", p, "H", h, "Water")
@@ -191,11 +179,18 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     )
 
 
-    select = ["ρ","α","T","p"]
+p1 = plot(z_scalar, ρ)
+p2 = plot(z_vect,   v)
+p3 = plot(z_scalar, h)
+p4 = plot(z_scalar, p)
 
-    fields = [field_dict[key] for key in select]
-    plots = plot_this(fields, select)
-    for p in plots
-        vline!(p, [z0_heater,z0_heater+Lh])
-    end
- p = plot(plots...)
+plot(p1,p2,p3,p4)
+
+#     select = ["ρ","α","T","p"]
+
+#     fields = [field_dict[key] for key in select]
+#     plots = plot_this(fields, select)
+#     for p in plots
+#         vline!(p, [z0_heater,z0_heater+Lh])
+#     end
+#  p = plot(plots...)
