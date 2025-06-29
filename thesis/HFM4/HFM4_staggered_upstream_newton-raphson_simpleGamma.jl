@@ -5,7 +5,8 @@ using Plots
 
 """ 
 Solves the 2-phase steady state vertical pipe flow with constant upstream boundary conditions
-using the 3-equation Homogeneous Equilibrium Model (HEM)
+using the 4-equation Homogeneous Flow Model (HFM)
+with a smoothed step function for vapor generation
 upwind staggered finite volume
 nondimensional version of the equations
 and manual implementation of Newton-Raphson employing numerical jacobian
@@ -14,7 +15,9 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 # Auxiliary functions 
 
   function plot_this(list, names)
-    plots = [plot(name == "v" ? z_vect : z_scalar, item, 
+    plots = [plot(
+                name == "v" ? z_vect : z_scalar, 
+                item, 
                 title=name, 
                 marker=:circle,
                 markersize=1.5,
@@ -41,45 +44,49 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     # Upstream conditions
     v_half = 0.24
     p_half = 498e3
+    α_half = 0
     T_sat = PropsSI("T", "P", p_half, "Q", 0, "Water")
     ΔT_subcooling = 30
     T_half = T_sat - ΔT_subcooling
     h_half = PropsSI("H", "P", p_half, "T", T_half, "Water")
     ρ_half = PropsSI("D", "P", p_half, "T", T_half, "Water")
-    # True constants
+    ρg0 = PropsSI("D", "P", p_half, "Q", 1, "Water")
+    ρl = ρ_half
+    
+    # Physical constants
     A = 0.25*π*(d_outer^2 - d_inner^2)
     g = 9.8
     rugosity = 0
+
     # Heat input
     q_flux = 156e3
-    Qh = q_flux*Lh*L*π*d_inner
+    Qh = q_flux*pi*d_inner*Lh*L
     S  = zeros(N+1)    
     S[z0_heater .< z_scalar .< z0_heater + Lh] .=  1
+
     # Derived quantities
     m_dot = ρ_half*v_half*A
     h_Lh = h_half + Qh/m_dot
+
     # Dimensionless groups
     Fr = v_half^2/(g*L)
     Ec = v_half^2/(h_Lh - h_half)
 
-# Upwind difference matrix
+# Difference matrices
+    # Upwind difference matrix
     D_upw = spdiagm(
         -1 => -ones(N),
-         0 =>  ones(N+1)
-    )
+         0 =>  ones(N+1))
     D_upw = D_upw/dz
 
-# Centered difference matrix
-
+    # Centered difference matrix
     D_center = spdiagm(
         -1 => -ones(N),
-         1 =>  ones(N)
-    )
+         1 =>  ones(N))
     D_center[N+1,:] = [zeros(N-1); -2; 2]
     D_center = D_center/(2*dz)
 
-# Mean matrices
-
+    # Mean matrix
     M_ρ = spdiagm(
         0 => ones(N+1),
         1 => ones(N))
@@ -90,62 +97,89 @@ and manual implementation of Newton-Raphson employing numerical jacobian
         0 => ones(N+1),
         1 => ones(N))
     M_v = M_v/2
-    
 
 
-# Equation of state
+# Equations of state
+    # Mixture density
     f_hat(h,p) = PropsSI("D", "H", h, "P", p, "Water")
 
-# Friction factor
+    # Vapor density
+    f_hat_g(p) = PropsSI("D", "P", p, "Q", 1, "Water")
 
-  function f(Re)
-    f1 = (-2.457*log((7 / Re)^0.9 + 0.27*rugosity/Dh))^16
-    f2 = (37530 / Re)^12
-    return 8*((8 / Re)^12 + (f1 + f2)^(-1.5))^(1/12)
+# Friction factor
+    function f(Re)
+      f1 = (-2.457*log((7 / Re)^0.9 + 0.27*rugosity/Dh))^16
+      f2 = (37530 / Re)^12
+      return 8*((8 / Re)^12 + (f1 + f2)^(-1.5))^(1/12)
+    end
+
+# Vapor generation
+  function Γ(h,p)
+    hl_sat = PropsSI("H", "P", p, "Q", 0, "Water")
+    hg_sat = PropsSI("H", "P", p, "Q", 1, "Water")
+    hfg = hg_sat - hl_sat
+    if h > hl_sat
+        π*d_inner*q_flux/(A*hfg)
+    else
+        0
+    end
   end
 
+#   function Γ(h,p)
+#     hl_sat = PropsSI("H", "P", p, "Q", 0, "Water")
+#     hg_sat = PropsSI("H", "P", p, "Q", 1, "Water")
+#     hfg = hg_sat - hl_sat
+#     transition_width = 0.0001 * hfg  # 10% of hfg as transition zone
+#     x = (h - hl_sat) / transition_width
+#     return π*d_inner*q_flux/(A*hfg) * (1 / (1 + exp(-x)))
+# end
 
 # Root function
     function F(Q)
-        matrix = reshape(Q,N+1,4)
-        ρ,v,h,p = eachcol(matrix)
+        matrix = reshape(Q,N+1,5)
+        ρ,α,v,h,p = eachcol(matrix)
 
         h_dim = h_half .+ (h_Lh - h_half)*h
         p_dim = p_half .+ ρ_half*g*L*p
 
         μ  = PropsSI.("V","H",h_dim,"P",p_dim,"Water")
-        Re = ρ_half*v_half*ρ.*v*Dh./μ
+        Re = abs.(ρ_half*v_half*ρ.*v*Dh./μ)
+
+        ρg = f_hat_g.(p_dim)/ρg0
 
         F_mass = D_upw*(ρ.*v)
+        F_alpha = D_upw*(α.*ρg.*v) - Γ.(h_dim, p_dim)/(ρg0*v_half)
         F_momentum = v.*D_upw*v + 1/Fr * (D_center*p)./(M_ρ*ρ) + 0.5*f.(Re)*L/Dh.*v.*abs.(v) .+ 1/Fr
         F_energy = D_upw*(ρ.*h.*v) - Ec/Fr * (M_v*v).*(D_center*p) - S/Lh
-        F_eos = ρ_half*ρ - f_hat.(h_dim, p_dim)
+        F_eos = ρ_half*ρ - ρg0*α.*ρg - (1 .- α)*ρl
 
         F_mass[1]     = ρ[1] + ρ[2] - 2
+        F_alpha[1]    = α[1] + α[2] - 2*α_half
         F_momentum[1] = v[1] - 1
         F_energy[1]   = h[1] + h[2]
         F_eos[1]      = p[1] + p[2]
 
-        return [F_mass; F_momentum; F_energy; F_eos]
+        return [F_mass; F_alpha; F_momentum; F_energy; F_eos]
     end
 
 # Jacobian
     function J(Q)
-        e(j) = I(4(N+1))[:,j]
+        e(j) = I(5(N+1))[:,j]
         δ = 1e-6
         FQk = F(Q)
-        Jac = hcat(((F(Q + δ*e(j)) - FQk)/δ for j in 1:4(N+1))...)
+        Jac = hcat(((F(Q + δ*e(j)) - FQk)/δ for j in 1:5(N+1))...)
         return Jac
     end
 
 
 # Initialize
     ρ_init = ones(N+1)
+    α_init = zeros(N+1)
     v_init = ones(N+1)
     h_init = zeros(N+1)
     p_init = zeros(N+1)
 
-    Qk = [ρ_init; v_init; h_init; p_init]
+    Qk = [ρ_init; α_init; v_init; h_init; p_init]
 
 # Main loop
     tol = 1e-2
@@ -153,6 +187,10 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     k = 0
     while res > tol
         global Qk, res, k
+
+
+        matrix = reshape(Qk,N+1,5)
+        ρ,α,v,h,p = eachcol(matrix)
 
         k = k + 1 
         print(k)
@@ -164,8 +202,8 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 
 # Derived fields
 
-    matrix = reshape(Qk,N+1,4)
-    ρ,v,h,p = eachcol(matrix)
+    matrix = reshape(Qk,N+1,5)
+    ρ,α,v,h,p = eachcol(matrix)
 
     ρ = ρ_half*ρ
     v = v_half*v
@@ -177,7 +215,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     Q[Q .== -1] .= 0
     ρg = PropsSI.("D", "P", p, "Q", 1, "Water")
     ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
-    α = (Q./ρg)./(Q./ρg + (1 .- Q)./ρl)
+    # α = (Q./ρg)./(Q./ρg + (1 .- Q)./ρl)
     p = p/1e3 #kPa
     h = h/1e3 #kJ
 
@@ -204,4 +242,4 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     for p in plots
         vline!(p, [z0_heater,z0_heater+Lh])
     end
- p = plot(plots...)
+    plot(plots...)
