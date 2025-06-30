@@ -1,7 +1,6 @@
 using LinearAlgebra
 using SparseArrays
 using CoolProp
-using Plots
 
 """ 
 Solves the 2-phase steady state vertical pipe flow with constant upstream boundary conditions
@@ -240,32 +239,47 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 
     T_cr = PropsSI.("T", "P", p, "H", h_cr, "Water")
 
+    T_sat = PropsSI.("T", "P", p, "Q", 1, "Water")
+
     println("h_cr/hl_sat = $(maximum(h_cr./hl_sat))")
 
 # Plotting 
 
-    field_dict = Dict(
-    "ρ" => ρ,
-    "v" => v,
-    "h" => h/1e3,
-    "p" => p/1e3,
-    "T" => T .- 273.15,
-    "Q" => Q,
-    "α" => α,
-    "ρg" => ρg,
-    "ρl" => ρl,
-    "hl_sat" => hl_sat/1e3,
-    "h_cr" => h_cr/1e3,
-    "Pe" => Pe,
-    "T_cr" => T_cr .- 273.15,
+    using Plots
+    using LaTeXStrings
+
+    T = T .- 273.15
+    T_sat = T_sat .- 273.15
+    p = p/1e3
+    h_cr = h_cr/1e3
+    h = h/1e3
+
+    enthalpy_plot = plot(
+        z_scalar, [h, h_cr],
+        label = [L"H" L"H_{cr}"],
+        title = L"H", 
+        marker=[2 0],
     )
 
+    temperature_plot = plot(
+        z_scalar, [T, T_sat],
+        label = [L"T" L"T_{sat}"],
+        title = L"T", 
+        marker=[2 0],
+    )
 
-    select = ["ρ", "α", "T", "p"]
+    void_plot = plot(
+        z_scalar, α,
+        title = L"\alpha", 
+        label = nothing,
+        marker = 2,
+    )
 
-    fields = [field_dict[key] for key in select]
-    plots = plot_this(fields, select)
-    for p in plots
-        vline!(p, [z0_heater,z0_heater+Lh])
-    end
-    plot(plots...)
+    pressure_plot = plot(
+        z_scalar, p,
+        title = L"P", 
+        label = nothing,
+        marker = 2,
+    )
+
+    plot(enthalpy_plot, void_plot, temperature_plot, pressure_plot)
