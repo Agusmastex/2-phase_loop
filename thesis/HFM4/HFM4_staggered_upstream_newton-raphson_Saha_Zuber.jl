@@ -6,7 +6,7 @@ using Plots
 """ 
 Solves the 2-phase steady state vertical pipe flow with constant upstream boundary conditions
 using the 4-equation Homogeneous Flow Model (HFM)
-with a smoothed step function for vapor generation
+the Saha-Zuber correlation for critical enthalpy of the point of Net Vapor Generation
 upwind staggered finite volume
 nondimensional version of the equations
 and manual implementation of Newton-Raphson employing numerical jacobian
@@ -51,12 +51,15 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     h_half = PropsSI("H", "P", p_half, "T", T_half, "Water")
     ρ_half = PropsSI("D", "P", p_half, "T", T_half, "Water")
     ρg0 = PropsSI("D", "P", p_half, "Q", 1, "Water")
-    ρl = ρ_half
     
     # Physical constants
     A = 0.25*π*(d_outer^2 - d_inner^2)
     g = 9.8
     rugosity = 0
+    ρl = ρ_half
+    cp_l = PropsSI("C", "P", p_half, "T", T_half, "Water")
+    ρg0 = PropsSI("D", "P", p_half, "Q", 1, "Water")
+
 
     # Heat input
     q_flux = 156e3
@@ -118,12 +121,25 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     hl_sat = PropsSI("H", "P", p, "Q", 0, "Water")
     hg_sat = PropsSI("H", "P", p, "Q", 1, "Water")
     hfg = hg_sat - hl_sat
+    kl = PropsSI("conductivity", "P", p, "Q", 1, "Water")
+
+    Nu_mod = q_flux*Dh/kl
+    Pe = ρ_half*v_half*Dh*cp_l/kl
+    St_mod = Nu_mod/Pe
+
+    if Pe > 70_000
+        h_cr = hl_sat - St_mod/455 * cp_l
+    else
+        h_cr = hl_sat - Nu_mod/0.0065 *cp_l
+    end
+
     if h > hl_sat
         π*d_inner*q_flux/(A*hfg)
     else
         0
     end
   end
+
 
 # Root function
     function F(Q)
@@ -201,32 +217,51 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     h = h_half .+ (h_Lh - h_half)*h
     p = p_half .+ ρ_half*g*L*p
 
-    T = PropsSI.("T", "P", p, "H", h, "Water") .- 273.15
+    T = PropsSI.("T", "P", p, "H", h, "Water") #.- 273.15
     Q = PropsSI.("Q", "P", p, "H", h, "Water")
     Q[Q .== -1] .= 0
     ρg = PropsSI.("D", "P", p, "Q", 1, "Water")
     ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
     # α = (Q./ρg)./(Q./ρg + (1 .- Q)./ρl)
-    p = p/1e3 #kPa
-    h = h/1e3 #kJ
+    # p = p/1e3 #kPa
+    # h = h/1e3 #kJ
 
+    hl_sat = PropsSI.("H", "P", p, "Q", 0, "Water")
+
+    kl = PropsSI.("conductivity", "P", p, "Q", 1, "Water")
+    Pe = ρ_half*v_half*Dh*cp_l./kl
+
+    Nu_mod = q_flux*Dh./kl
+    St_mod = Nu_mod./Pe
+
+    h_cr = zeros(N+1)
+    h_cr[Pe .> 70_000] .= (hl_sat - St_mod/455 * cp_l)[Pe .> 70_000]
+    h_cr[Pe .< 70_000] .= (hl_sat - Nu_mod/0.0065 *cp_l)[Pe .< 70_000]
+
+    T_cr = PropsSI.("T", "P", p, "H", h_cr, "Water")
+
+    println("h_cr/hl_sat = $(maximum(h_cr./hl_sat))")
 
 # Plotting 
 
     field_dict = Dict(
     "ρ" => ρ,
     "v" => v,
-    "h" => h,
-    "p" => p,
-    "T" => T,
+    "h" => h/1e3,
+    "p" => p/1e3,
+    "T" => T .- 273.15,
     "Q" => Q,
     "α" => α,
     "ρg" => ρg,
-    "ρl" => ρl
+    "ρl" => ρl,
+    "hl_sat" => hl_sat/1e3,
+    "h_cr" => h_cr/1e3,
+    "Pe" => Pe,
+    "T_cr" => T_cr .- 273.15,
     )
 
 
-    select = ["ρ","α","T","p"]
+    select = ["ρ", "α", "T", "p"]
 
     fields = [field_dict[key] for key in select]
     plots = plot_this(fields, select)
