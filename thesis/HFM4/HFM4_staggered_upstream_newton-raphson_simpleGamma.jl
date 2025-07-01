@@ -1,16 +1,21 @@
 using LinearAlgebra
 using SparseArrays
 using CoolProp
-using Plots
 
 """ 
-Solves the 2-phase steady state vertical pipe flow with constant upstream boundary conditions
+Solves the 2-phase steady state 1D vertical flow with constant upstream boundary conditions
 using the 4-equation Homogeneous Flow Model (HFM)
-with a smoothed step function for vapor generation
+Simplified point of Net Vapor Generation with boiling only in saturated conditions (h > hl_sat)
 upwind staggered finite volume
 nondimensional version of the equations
 and manual implementation of Newton-Raphson employing numerical jacobian
 """
+
+# Conditions input
+    v_in = 0.24
+    P_in = 181e3
+    ΔT_sub = 19
+    q_flux = 56e3
 
 # Auxiliary functions 
 
@@ -42,12 +47,11 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 
 # Constants
     # Upstream conditions
-    v_half = 0.24
-    p_half = 498e3
+    v_half = v_in
+    p_half = P_in
     α_half = 0
     T_sat = PropsSI("T", "P", p_half, "Q", 0, "Water")
-    ΔT_subcooling = 30
-    T_half = T_sat - ΔT_subcooling
+    T_half = T_sat - ΔT_sub
     h_half = PropsSI("H", "P", p_half, "T", T_half, "Water")
     ρ_half = PropsSI("D", "P", p_half, "T", T_half, "Water")
     ρg0 = PropsSI("D", "P", p_half, "Q", 1, "Water")
@@ -59,7 +63,6 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     rugosity = 0
 
     # Heat input
-    q_flux = 156e3
     Qh = q_flux*pi*d_inner*Lh*L
     S  = zeros(N+1)    
     S[z0_heater .< z_scalar .< z0_heater + Lh] .=  1
@@ -201,36 +204,65 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     h = h_half .+ (h_Lh - h_half)*h
     p = p_half .+ ρ_half*g*L*p
 
-    T = PropsSI.("T", "P", p, "H", h, "Water") .- 273.15
+    T = PropsSI.("T", "P", p, "H", h, "Water")
     Q = PropsSI.("Q", "P", p, "H", h, "Water")
     Q[Q .== -1] .= 0
     ρg = PropsSI.("D", "P", p, "Q", 1, "Water")
     ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
-    # α = (Q./ρg)./(Q./ρg + (1 .- Q)./ρl)
-    p = p/1e3 #kPa
-    h = h/1e3 #kJ
 
+    hl_sat = PropsSI.("H", "P", p, "Q", 0, "Water")
+    T_sat = PropsSI.("T", "P", p, "Q", 1, "Water")
 
 # Plotting 
 
-    field_dict = Dict(
-    "ρ" => ρ,
-    "v" => v,
-    "h" => h,
-    "p" => p,
-    "T" => T,
-    "Q" => Q,
-    "α" => α,
-    "ρg" => ρg,
-    "ρl" => ρl
+    using Plots
+    using LaTeXStrings
+
+    T = T .- 273.15
+    T_sat = T_sat .- 273.15
+    p = p/1e3
+    h = h/1e3
+    hl_sat = hl_sat/1e3
+
+    enthalpy_plot = plot(
+        z_scalar, [h, hl_sat],
+        label = [L"H" L"H^{sat}_l"],
+        title = L"H", 
+        marker=[2 0],
+    )
+
+    temperature_plot = plot(
+        z_scalar, [T, T_sat],
+        label = [L"T" L"T_{sat}"],
+        title = L"T", 
+        marker=[2 0],
+    )
+
+    void_plot = plot(
+        z_scalar, α,
+        title = L"\alpha", 
+        label = nothing,
+        marker = 2,
+        ylims = (0, 0.8),
+    )
+
+    pressure_plot = plot(
+        z_scalar, p,
+        title = L"P", 
+        label = nothing,
+        marker = 2,
     )
 
 
-    select = ["ρ","α","T","p"]
+plots = [
+    enthalpy_plot,
+    void_plot,
+    temperature_plot,
+    pressure_plot,
+]
 
-    fields = [field_dict[key] for key in select]
-    plots = plot_this(fields, select)
-    for p in plots
-        vline!(p, [z0_heater,z0_heater+Lh])
-    end
-    plot(plots...)
+for plot in plots
+    vline!(plot,  [z0_heater + Lh], color=:black, label=nothing)
+end
+
+plot(plots...)

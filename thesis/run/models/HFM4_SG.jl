@@ -1,35 +1,19 @@
+module HFM4_SG
+
 using LinearAlgebra
 using SparseArrays
 using CoolProp
+using Plots
 
 """ 
-Solves the 2-phase steady state 1D vertical flow with constant upstream boundary conditions
+Solves the 2-phase steady state vertical pipe flow with constant upstream boundary conditions
 using the 4-equation Homogeneous Flow Model (HFM)
-the Saha-Zuber correlation for critical enthalpy of the point of Net Vapor Generation
 upwind staggered finite volume
 nondimensional version of the equations
 and manual implementation of Newton-Raphson employing numerical jacobian
 """
 
-# Conditions input
-    v_in = 0.24
-    P_in = 181e3
-    ΔT_sub = 19
-    q_flux = 56e3
-
-# Auxiliary functions 
-
-  function plot_this(list, names)
-    plots = [plot(
-                name == "v" ? z_vect : z_scalar, 
-                item, 
-                title=name, 
-                marker=:circle,
-                markersize=1.5,
-                linewidth=0) 
-            for (item, name) in zip(list, names)]
-    return plots
-  end
+function run(P_in, j_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
 
 # Geometry
     L = 5.03
@@ -40,14 +24,14 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     z0_heater = 0.0/L
 
 # Grid
-    N  = 20
+    N  = n_nodes
     dz = 1/N
     z_scalar = -dz/2:dz:(1 - dz/2)
     z_vect   = 0:dz:1
 
 # Constants
     # Upstream conditions
-    v_half = v_in
+    v_half = j_in
     p_half = P_in
     α_half = 0
     T_sat = PropsSI("T", "P", p_half, "Q", 0, "Water")
@@ -55,26 +39,22 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     h_half = PropsSI("H", "P", p_half, "T", T_half, "Water")
     ρ_half = PropsSI("D", "P", p_half, "T", T_half, "Water")
     ρg0 = PropsSI("D", "P", p_half, "Q", 1, "Water")
+    ρl = ρ_half
     
-    # Physical constants
+    # True constants
     A = 0.25*π*(d_outer^2 - d_inner^2)
     g = 9.8
     rugosity = 0
-    ρl = ρ_half
     cp_l = PropsSI("C", "P", p_half, "T", T_half, "Water")
-    ρg0 = PropsSI("D", "P", p_half, "Q", 1, "Water")
-
-
     # Heat input
-    # q_flux = 100e3
+    # q_flux = 156e3
+    # q_flux = 640e3
     Qh = q_flux*pi*d_inner*Lh*L
     S  = zeros(N+1)    
     S[z0_heater .< z_scalar .< z0_heater + Lh] .=  1
-
     # Derived quantities
     m_dot = ρ_half*v_half*A
     h_Lh = h_half + Qh/m_dot
-
     # Dimensionless groups
     Fr = v_half^2/(g*L)
     Ec = v_half^2/(h_Lh - h_half)
@@ -114,41 +94,37 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     f_hat_g(p) = PropsSI("D", "P", p, "Q", 1, "Water")
 
 # Friction factor
-    function f(Re)
-      f1 = (-2.457*log((7 / Re)^0.9 + 0.27*rugosity/Dh))^16
-      f2 = (37530 / Re)^12
-      return 8*((8 / Re)^12 + (f1 + f2)^(-1.5))^(1/12)
-    end
+  function f(Re)
+    f1 = (-2.457*log((7 / Re)^0.9 + 0.27*rugosity/Dh))^16
+    f2 = (37530 / Re)^12
+    return 8*((8 / Re)^12 + (f1 + f2)^(-1.5))^(1/12)
+  end
 
 # Vapor generation
   function Γ(h,p)
     hl_sat = PropsSI("H", "P", p, "Q", 0, "Water")
     hg_sat = PropsSI("H", "P", p, "Q", 1, "Water")
     hfg = hg_sat - hl_sat
-    kl = PropsSI("conductivity", "P", p, "Q", 1, "Water")
 
-    Nu_mod = q_flux*Dh/kl
-    Pe = ρ_half*v_half*Dh*cp_l/kl
-    St_mod = Nu_mod/Pe
-
-    if Pe > 70_000
-        h_cr = hl_sat - St_mod/455 * cp_l
-    else
-        h_cr = hl_sat - Nu_mod/0.0065 *cp_l
-    end
-
-    # if h > h_cr
+    # if h > hl_sat
     #     π*d_inner*q_flux/(A*hfg)
     # else
     #     0
     # end
 
-    # Smoothed step function
     transition_width = 0.0001 * hfg  # 10% of hfg as transition zone
-    x = (h - h_cr) / transition_width
+    x = (h - hl_sat) / transition_width
     return π*d_inner*q_flux/(A*hfg) * (1 / (1 + exp(-x)))
-
   end
+
+#   function Γ(h,p)
+#     hl_sat = PropsSI("H", "P", p, "Q", 0, "Water")
+#     hg_sat = PropsSI("H", "P", p, "Q", 1, "Water")
+#     hfg = hg_sat - hl_sat
+#     transition_width = 0.0001 * hfg  # 10% of hfg as transition zone
+#     x = (h - hl_sat) / transition_width
+#     return π*d_inner*q_flux/(A*hfg) * (1 / (1 + exp(-x)))
+# end
 
 # Root function
     function F(Q)
@@ -167,6 +143,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
         F_alpha = D_upw*(α.*ρg.*v) - Γ.(h_dim, p_dim)/(ρg0*v_half)
         F_momentum = v.*D_upw*v + 1/Fr * (D_center*p)./(M_ρ*ρ) + 0.5*f.(Re)*L/Dh.*v.*abs.(v) .+ 1/Fr
         F_energy = D_upw*(ρ.*h.*v) - Ec/Fr * (M_v*v).*(D_center*p) - S/Lh
+        # F_eos = ρ_half*ρ - f_hat.(h_dim, p_dim)
         F_eos = ρ_half*ρ - ρg0*α.*ρg - (1 .- α)*ρl
 
         F_mass[1]     = ρ[1] + ρ[2] - 2
@@ -202,7 +179,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     res = 1.0
     k = 0
     while res > tol
-        global Qk, res, k
+        # global Qk, res, k
 
 
         matrix = reshape(Qk,N+1,5)
@@ -215,7 +192,6 @@ and manual implementation of Newton-Raphson employing numerical jacobian
         Qk = Qk + x
         res = norm(x)
     end
-    println()
 
 # Derived fields
 
@@ -227,93 +203,25 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     h = h_half .+ (h_Lh - h_half)*h
     p = p_half .+ ρ_half*g*L*p
 
-    T = PropsSI.("T", "P", p, "H", h, "Water") #.- 273.15
-    Q = PropsSI.("Q", "P", p, "H", h, "Water")
-    Q[Q .== -1] .= 0
-    ρg = PropsSI.("D", "P", p, "Q", 1, "Water")
-    ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
+    T = PropsSI.("T", "P", p, "H", h, "Water") .- 273.15
+    p = p/1e3 #kPa
+    h = h/1e3 #kJ
 
-    kl = PropsSI.("conductivity", "P", p, "Q", 1, "Water")
-    Pe = ρ_half*v_half*Dh*cp_l./kl
-
-    Nu_mod = q_flux*Dh./kl
-    St_mod = Nu_mod./Pe
-
-    hl_sat = PropsSI.("H", "P", p, "Q", 0, "Water")
-    h_cr = zeros(N+1)
-    h_cr[Pe .> 70_000] .= (hl_sat - St_mod/455 * cp_l)[Pe .> 70_000]
-    h_cr[Pe .< 70_000] .= (hl_sat - Nu_mod/0.0065 *cp_l)[Pe .< 70_000]
-
-    T_cr = PropsSI.("T", "P", p, "H", h_cr, "Water")
-    T_sat = PropsSI.("T", "P", p, "Q", 1, "Water")
-
-# Report
-
-    println("h_cr/hl_sat = $(maximum(h_cr./hl_sat))")
-    println("Pe = $(round(sum(Pe)/(N+1)))")
 
 # Plotting 
+    dz = L/N
+    z_scalar = -dz/2:dz:(L - dz/2)
+    Lh = Lh*L
+    z0_heater = z0_heater*L
 
-    using Plots
-    using LaTeXStrings
-
-    T = T .- 273.15
-    T_sat = T_sat .- 273.15
-    p = p/1e3
-    h = h/1e3
-    h_cr = h_cr/1e3
-    hl_sat = hl_sat/1e3
-
-    enthalpy_plot = plot(
-        z_scalar, [h, h_cr, hl_sat],
-        label = [L"H" L"H_{cr}" L"H^{sat}_l"],
-        title = L"H", 
-        marker = [2 1.5 0],
-        legend = :bottomright,
+    fields = Dict(
+       "z" => z_scalar,
+       "alpha" => α,
+       "T" => T,
+       "P" => p,
     )
 
-    temperature_plot = plot(
-        z_scalar, [T, T_sat],
-        label = [L"T" L"T_{sat}"],
-        title = L"T", 
-        marker = [2 0],
-        legend = :bottomright,
-    )
-
-    void_plot = plot(
-        z_scalar, α,
-        title = L"\alpha", 
-        label = nothing,
-        marker = 2,
-        ylims = (0, 0.8),
-    )
-
-    pressure_plot = plot(
-        z_scalar, p,
-        title = L"P", 
-        label = nothing,
-        marker = 2,
-    )
-
-    peclet_plot = plot(
-        z_scalar, Pe,
-        title = "Pe",
-        label = nothing,
-        marker = 0,
-        yformatter = :plain,
-    )      
-    # hline!([70_000])
-
-plots = [
-    enthalpy_plot,
-    void_plot,
-    temperature_plot,
-    pressure_plot,
-    # peclet_plot,
-]
-
-for plot in plots
-    vline!(plot,  [z0_heater + Lh], color=:black, label=nothing)
+return fields
 end
 
-plot(plots...)
+end
