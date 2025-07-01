@@ -16,11 +16,11 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 function run(P_in, j_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
 
 # Geometry
-    L = 5.03
-    d_inner = 19.05e-3
-    d_outer = 38.10e-3
+    L = 2.8 + 1.7
+    d_inner = 0.0191
+    d_outer = 0.0381
     Dh = d_outer - d_inner
-    Lh = 3.0/L
+    Lh = 2.8/L
     z0_heater = 0.0/L
 
 # Grid
@@ -179,12 +179,6 @@ function run(P_in, j_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
     res = 1.0
     k = 0
     while res > tol
-        # global Qk, res, k
-
-
-        matrix = reshape(Qk,N+1,5)
-        ρ,α,v,h,p = eachcol(matrix)
-
         k = k + 1 
         print(k)
 

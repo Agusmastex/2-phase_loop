@@ -11,6 +11,13 @@ nondimensional version of the equations
 and manual implementation of Newton-Raphson employing numerical jacobian
 """
 
+# Conditions input
+    P_in = 750e3
+    v_in = 1.0
+    ΔT_sub = 11
+    q_flux = 241e3
+
+
 # Auxiliary functions 
 
   function plot_this(list, names)
@@ -24,11 +31,11 @@ and manual implementation of Newton-Raphson employing numerical jacobian
   end
 
 # Geometry
-    L = 5.03
-    d_inner = 19.05e-3
-    d_outer = 38.10e-3
+    L = 2.8 + 1.7
+    d_inner = 0.0191
+    d_outer = 0.0381
     Dh = d_outer - d_inner
-    Lh = 3.0/L
+    Lh = 2.8/L
     z0_heater = 0.0/L
 
 # Grid
@@ -39,11 +46,10 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 
 # Constants
     # Upstream conditions
-    v_half = 0.24
-    p_half = 498e3
+    v_half = v_in
+    p_half = P_in
     T_sat = PropsSI("T", "P", p_half, "Q", 0, "Water")
-    ΔT_subcooling = 30
-    T_half = T_sat - ΔT_subcooling
+    T_half = T_sat - ΔT_sub
     h_half = PropsSI("H", "P", p_half, "T", T_half, "Water")
     ρ_half = PropsSI("D", "P", p_half, "T", T_half, "Water")
     # True constants
@@ -51,7 +57,6 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     g = 9.8
     rugosity = 0
     # Heat input
-    q_flux = 156e3
     Qh = q_flux*Lh*L*π*d_inner
     S  = zeros(N+1)    
     S[z0_heater .< z_scalar .< z0_heater + Lh] .=  1
@@ -172,36 +177,67 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     h = h_half .+ (h_Lh - h_half)*h
     p = p_half .+ ρ_half*g*L*p
 
-    T = PropsSI.("T", "P", p, "H", h, "Water") .- 273.15
+    T = PropsSI.("T", "P", p, "H", h, "Water")
     Q = PropsSI.("Q", "P", p, "H", h, "Water")
     Q[Q .== -1] .= 0
     ρg = PropsSI.("D", "P", p, "Q", 1, "Water")
     ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
     α = (Q./ρg)./(Q./ρg + (1 .- Q)./ρl)
-    p = p/1e3 #kPa
-    h = h/1e3 #kJ
 
+    hl_sat = PropsSI.("H", "P", p, "Q", 0, "Water")
+    T_sat = PropsSI.("T", "P", p, "Q", 1, "Water")
 
 # Plotting 
 
-    field_dict = Dict(
-    "ρ" => ρ,
-    "v" => v,
-    "h" => h,
-    "p" => p,
-    "T" => T,
-    "Q" => Q,
-    "α" => α,
-    "ρg" => ρg,
-    "ρl" => ρl
+    using Plots
+    using LaTeXStrings
+
+    T = T .- 273.15
+    T_sat = T_sat .- 273.15
+    p = p/1e3
+    h = h/1e3
+    hl_sat = hl_sat/1e3
+
+    enthalpy_plot = plot(
+        z_scalar, [h, hl_sat],
+        label = [L"H" L"H^{sat}_l"],
+        title = L"H", 
+        marker = [2 1.5 0],
+        legend = :bottomright,
     )
 
+    temperature_plot = plot(
+        z_scalar, [T, T_sat],
+        label = [L"T" L"T_{sat}"],
+        title = L"T", 
+        marker = [2 0],
+        legend = :bottomright,
+    )
 
-    select = ["ρ","α","T","p"]
+    void_plot = plot(
+        z_scalar, α,
+        title = L"\alpha", 
+        label = nothing,
+        marker = 2,
+        ylims = (0, 0.8),
+    )
 
-    fields = [field_dict[key] for key in select]
-    plots = plot_this(fields, select)
-    for p in plots
-        vline!(p, [z0_heater,z0_heater+Lh])
-    end
- p = plot(plots...)
+    pressure_plot = plot(
+        z_scalar, p,
+        title = L"P", 
+        label = nothing,
+        marker = 2,
+    )
+
+plots = [
+    enthalpy_plot,
+    void_plot,
+    temperature_plot,
+    pressure_plot,
+]
+
+for plot in plots
+    vline!(plot,  [z0_heater + Lh], color=:black, label=nothing)
+end
+
+plot(plots...)
