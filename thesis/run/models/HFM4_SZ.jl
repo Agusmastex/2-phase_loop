@@ -1,40 +1,38 @@
+module HFM4_SZ
+
 using LinearAlgebra
 using SparseArrays
 using CoolProp
+using Plots
 
 """ 
-Solves the 2-phase steady state 1D vertical flow with constant upstream boundary conditions
+Name stands for Homogeneous Flow Model (4-eq) Simple Gamma
+Solves the 2-phase steady state vertical pipe flow with constant upstream boundary conditions
 using the 4-equation Homogeneous Flow Model (HFM)
-Simplified point of Net Vapor Generation with boiling only in saturated conditions (h > hl_sat)
 upwind staggered finite volume
 nondimensional version of the equations
 and manual implementation of Newton-Raphson employing numerical jacobian
-this model fails to capture subcooled boiling
 """
 
-# Conditions input
-    P_in = 750e3
-    v_in = 1.0
-    ΔT_sub = 11
-    q_flux = 241e3
+function run(P_in, j_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
 
 # Geometry
-    L = 5.03
-    d_inner = 19.05e-3
-    d_outer = 38.10e-3
+    L = 2.8 + 1.7
+    d_inner = 0.0191
+    d_outer = 0.0381
     Dh = d_outer - d_inner
-    Lh = 3.0/L
+    Lh = 2.8/L
     z0_heater = 0.0/L
 
 # Grid
-    N  = 20
+    N  = n_nodes
     dz = 1/N
     z_scalar = -dz/2:dz:(1 - dz/2)
     z_vect   = 0:dz:1
 
 # Constants
     # Upstream conditions
-    v_half = v_in
+    v_half = j_in
     p_half = P_in
     α_half = 0
     T_sat = PropsSI("T", "P", p_half, "Q", 0, "Water")
@@ -44,20 +42,20 @@ this model fails to capture subcooled boiling
     ρg0 = PropsSI("D", "P", p_half, "Q", 1, "Water")
     ρl = ρ_half
     
-    # Physical constants
+    # True constants
     A = 0.25*π*(d_outer^2 - d_inner^2)
     g = 9.8
     rugosity = 0
-
+    cp_l = PropsSI("C", "P", p_half, "T", T_half, "Water")
     # Heat input
+    # q_flux = 156e3
+    # q_flux = 640e3
     Qh = q_flux*pi*d_inner*Lh*L
     S  = zeros(N+1)    
     S[z0_heater .< z_scalar .< z0_heater + Lh] .=  1
-
     # Derived quantities
     m_dot = ρ_half*v_half*A
     h_Lh = h_half + Qh/m_dot
-
     # Dimensionless groups
     Fr = v_half^2/(g*L)
     Ec = v_half^2/(h_Lh - h_half)
@@ -97,22 +95,52 @@ this model fails to capture subcooled boiling
     f_hat_g(p) = PropsSI("D", "P", p, "Q", 1, "Water")
 
 # Friction factor
-    function f(Re)
-      f1 = (-2.457*log((7 / Re)^0.9 + 0.27*rugosity/Dh))^16
-      f2 = (37530 / Re)^12
-      return 8*((8 / Re)^12 + (f1 + f2)^(-1.5))^(1/12)
-    end
+  function f(Re)
+    f1 = (-2.457*log((7 / Re)^0.9 + 0.27*rugosity/Dh))^16
+    f2 = (37530 / Re)^12
+    return 8*((8 / Re)^12 + (f1 + f2)^(-1.5))^(1/12)
+  end
 
 # Vapor generation
   function Γ_w(h,p)
     hl_sat = PropsSI("H", "P", p, "Q", 0, "Water")
     hg_sat = PropsSI("H", "P", p, "Q", 1, "Water")
     hfg = hg_sat - hl_sat
-    if h > hl_sat
-        π*d_inner*q_flux/(A*hfg)
+    kl = PropsSI("conductivity", "P", p, "Q", 1, "Water")
+
+    hl = h # ?
+
+    Nu_mod = q_flux*Dh/kl
+    Pe = ρ_half*v_half*Dh*cp_l/kl
+    St_mod = Nu_mod/Pe
+
+    if Pe > 70_000
+        h_cr = hl_sat - St_mod/0.0065 * cp_l
+    else
+        h_cr = hl_sat - Nu_mod/455 *cp_l
+    end
+
+    Γw = π*d_inner*q_flux/(A*hfg)
+    
+    # ρg = PropsSI("D", "P", p, "H", h, "Water")
+    # ρl = PropsSI("D", "P", p, "H", h, "Water")
+    # ε = ρl*(hl - minimum([hl, hl_sat]))/(ρg*hfg)
+    ε = 0
+    Mul = (hl - h_cr)/((hl_sat - h_cr)*(1 + ε))
+
+    if hl > hl_sat
+        Γw
+    elseif h_cr < hl < hl_sat
+        Mul*Γw
     else
         0
     end
+
+    # Smoothed step function
+    # transition_width = 0.0001 * hfg
+    # x = (h - h_cr) / transition_width
+    # return Γ_w * (1 / (1 + exp(-x)))
+
   end
 
 # Root function
@@ -170,12 +198,6 @@ this model fails to capture subcooled boiling
     res = 1.0
     k = 0
     while res > tol
-        global Qk, res, k
-
-
-        matrix = reshape(Qk,N+1,5)
-        ρ,α,v,h,p = eachcol(matrix)
-
         k = k + 1 
         print(k)
 
@@ -194,68 +216,25 @@ this model fails to capture subcooled boiling
     h = h_half .+ (h_Lh - h_half)*h
     p = p_half .+ ρ_half*g*L*p
 
-    T = PropsSI.("T", "P", p, "H", h, "Water")
-    Q = PropsSI.("Q", "P", p, "H", h, "Water")
-    Q[Q .== -1] .= 0
-    ρg = PropsSI.("D", "P", p, "Q", 1, "Water")
-    ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
+    T = PropsSI.("T", "P", p, "H", h, "Water") .- 273.15
+    p = p/1e3 #kPa
+    h = h/1e3 #kJ
 
-    hl_sat = PropsSI.("H", "P", p, "Q", 0, "Water")
-    T_sat = PropsSI.("T", "P", p, "Q", 1, "Water")
 
 # Plotting 
+    dz = L/N
+    z_scalar = -dz/2:dz:(L - dz/2)
+    Lh = Lh*L
+    z0_heater = z0_heater*L
 
-    using Plots
-    using LaTeXStrings
-
-
-    enthalpies = [h, hl_sat]
-    enthalpies = map(x -> x/1e3, enthalpies)
-
-    temperatures = [T, T_sat]
-    temperatures = map(x -> x .- 273.15, temperatures)
-
-
-    enthalpy_plot = plot(
-        z_scalar, enthalpies,
-        label = [L"H" L"H^{sat}_l"],
-        title = L"H", 
-        marker = [2 0],
-        legend = :bottomright,
+    fields = Dict(
+       "z" => z_scalar,
+       "alpha" => α,
+       "T" => T,
+       "P" => p,
     )
 
-    temperature_plot = plot(
-        z_scalar, temperatures,
-        label = [L"T" L"T_{sat}"],
-        title = L"T", 
-        marker = [2 0],
-        legend = :bottomright,
-    )
-
-    void_plot = plot(
-        z_scalar, α,
-        title = L"\alpha", 
-        label = nothing,
-        marker = 2,
-        ylims = (0, 0.8),
-    )
-
-    pressure_plot = plot(
-        z_scalar, p,
-        title = L"P", 
-        label = nothing,
-        marker = 2,
-    )
-
-plots = [
-    enthalpy_plot,
-    void_plot,
-    temperature_plot,
-    pressure_plot,
-]
-
-for plot in plots
-    vline!(plot,  [z0_heater + Lh], color=:black, label=nothing)
+return fields
 end
 
-plot(plots...)
+end

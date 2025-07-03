@@ -12,24 +12,10 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 """
 
 # Conditions input
-    v_in = 0.24
-    P_in = 181e3
-    ΔT_sub = 19
-    q_flux = 56e3
-
-# Auxiliary functions 
-
-  function plot_this(list, names)
-    plots = [plot(
-                name == "v" ? z_vect : z_scalar, 
-                item, 
-                title=name, 
-                marker=:circle,
-                markersize=1.5,
-                linewidth=0) 
-            for (item, name) in zip(list, names)]
-    return plots
-  end
+    P_in = 750e3
+    v_in = 1.0
+    ΔT_sub = 11
+    q_flux = 241e3
 
 # Geometry
     L = 5.03
@@ -66,7 +52,6 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 
 
     # Heat input
-    # q_flux = 100e3
     Qh = q_flux*pi*d_inner*Lh*L
     S  = zeros(N+1)    
     S[z0_heater .< z_scalar .< z0_heater + Lh] .=  1
@@ -121,32 +106,44 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     end
 
 # Vapor generation
-  function Γ(h,p)
+  function Γ_w(h,p)
     hl_sat = PropsSI("H", "P", p, "Q", 0, "Water")
     hg_sat = PropsSI("H", "P", p, "Q", 1, "Water")
     hfg = hg_sat - hl_sat
     kl = PropsSI("conductivity", "P", p, "Q", 1, "Water")
+
+    hl = h # ?
 
     Nu_mod = q_flux*Dh/kl
     Pe = ρ_half*v_half*Dh*cp_l/kl
     St_mod = Nu_mod/Pe
 
     if Pe > 70_000
-        h_cr = hl_sat - St_mod/455 * cp_l
+        h_cr = hl_sat - St_mod/0.0065 * cp_l
     else
-        h_cr = hl_sat - Nu_mod/0.0065 *cp_l
+        h_cr = hl_sat - Nu_mod/455 *cp_l
     end
 
-    # if h > h_cr
-    #     π*d_inner*q_flux/(A*hfg)
-    # else
-    #     0
-    # end
+    Γw = π*d_inner*q_flux/(A*hfg)
+    
+    ρg = PropsSI("D", "P", p, "H", h, "Water")
+    ρl = PropsSI("D", "P", p, "H", h, "Water")
+    ε = ρl*(hl - minimum([hl, hl_sat]))/(ρg*hfg)
+    # ε = 0
+    Mul = (hl - h_cr)/((hl_sat - h_cr)*(1 + ε))
+
+    if hl > hl_sat
+        Γw
+    elseif h_cr < hl < hl_sat
+        Mul*Γw
+    else
+        0
+    end
 
     # Smoothed step function
-    transition_width = 0.0001 * hfg  # 10% of hfg as transition zone
-    x = (h - h_cr) / transition_width
-    return π*d_inner*q_flux/(A*hfg) * (1 / (1 + exp(-x)))
+    # transition_width = 0.0001 * hfg
+    # x = (h - h_cr) / transition_width
+    # return Γ_w * (1 / (1 + exp(-x)))
 
   end
 
@@ -163,8 +160,11 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 
         ρg = f_hat_g.(p_dim)/ρg0
 
+        Γ = zeros(N+1)
+        Γ[z_scalar .< Lh] .= Γ_w.(h_dim[z_scalar .< Lh], p_dim[z_scalar .< Lh])
+
         F_mass = D_upw*(ρ.*v)
-        F_alpha = D_upw*(α.*ρg.*v) - Γ.(h_dim, p_dim)/(ρg0*v_half)
+        F_alpha = D_upw*(α.*ρg.*v) - Γ/(ρg0*v_half)
         F_momentum = v.*D_upw*v + 1/Fr * (D_center*p)./(M_ρ*ρ) + 0.5*f.(Re)*L/Dh.*v.*abs.(v) .+ 1/Fr
         F_energy = D_upw*(ρ.*h.*v) - Ec/Fr * (M_v*v).*(D_center*p) - S/Lh
         F_eos = ρ_half*ρ - ρg0*α.*ρg - (1 .- α)*ρl
@@ -227,9 +227,9 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     h = h_half .+ (h_Lh - h_half)*h
     p = p_half .+ ρ_half*g*L*p
 
-    T = PropsSI.("T", "P", p, "H", h, "Water") #.- 273.15
-    Q = PropsSI.("Q", "P", p, "H", h, "Water")
-    Q[Q .== -1] .= 0
+    T = PropsSI.("T", "P", p, "H", h, "Water")
+    # Q = PropsSI.("Q", "P", p, "H", h, "Water")
+    # Q[Q .== -1] .= 0
     ρg = PropsSI.("D", "P", p, "Q", 1, "Water")
     ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
 
@@ -241,8 +241,8 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 
     hl_sat = PropsSI.("H", "P", p, "Q", 0, "Water")
     h_cr = zeros(N+1)
-    h_cr[Pe .> 70_000] .= (hl_sat - St_mod/455 * cp_l)[Pe .> 70_000]
-    h_cr[Pe .< 70_000] .= (hl_sat - Nu_mod/0.0065 *cp_l)[Pe .< 70_000]
+    h_cr[Pe .> 70_000] .= (hl_sat - St_mod/0.0065 * cp_l)[Pe .> 70_000]
+    h_cr[Pe .< 70_000] .= (hl_sat - Nu_mod/455 *cp_l)[Pe .< 70_000]
 
     T_cr = PropsSI.("T", "P", p, "H", h_cr, "Water")
     T_sat = PropsSI.("T", "P", p, "Q", 1, "Water")
@@ -250,33 +250,33 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 # Report
 
     println("h_cr/hl_sat = $(maximum(h_cr./hl_sat))")
-    println("Pe = $(round(sum(Pe)/(N+1)))")
+    println("Pe = $(Int(round(sum(Pe)/(N+1))))")
 
 # Plotting 
 
     using Plots
     using LaTeXStrings
 
-    T = T .- 273.15
-    T_sat = T_sat .- 273.15
-    p = p/1e3
-    h = h/1e3
-    h_cr = h_cr/1e3
-    hl_sat = hl_sat/1e3
+    enthalpies = [h, hl_sat, h_cr]
+    enthalpies = map(x -> x/1e3, enthalpies)
+
+    temperatures = [T, T_sat, T_cr]
+    temperatures = map(x -> x .- 273.15, temperatures)
+
 
     enthalpy_plot = plot(
-        z_scalar, [h, h_cr, hl_sat],
-        label = [L"H" L"H_{cr}" L"H^{sat}_l"],
+        z_scalar, enthalpies,
+        label = [L"H" L"H^{sat}_l" L"H_{cr}"],
         title = L"H", 
-        marker = [2 1.5 0],
+        marker = [2 0 0],
         legend = :bottomright,
     )
 
     temperature_plot = plot(
-        z_scalar, [T, T_sat],
-        label = [L"T" L"T_{sat}"],
+        z_scalar, temperatures,
+        label = [L"T" L"T_{sat}" L"T_{cr}"],
         title = L"T", 
-        marker = [2 0],
+        marker = [2 0 0],
         legend = :bottomright,
     )
 
@@ -289,7 +289,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     )
 
     pressure_plot = plot(
-        z_scalar, p,
+        z_scalar, p/1e3,
         title = L"P", 
         label = nothing,
         marker = 2,

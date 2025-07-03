@@ -17,19 +17,6 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     ΔT_sub = 11
     q_flux = 241e3
 
-
-# Auxiliary functions 
-
-  function plot_this(list, names)
-    plots = [plot(name == "v" ? z_vect : z_scalar, item, 
-                title=name, 
-                marker=:circle,
-                markersize=1.5,
-                linewidth=0) 
-            for (item, name) in zip(list, names)]
-    return plots
-  end
-
 # Geometry
     L = 2.8 + 1.7
     d_inner = 0.0191
@@ -39,7 +26,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     z0_heater = 0.0/L
 
 # Grid
-    N  = 20
+    N  = 50
     dz = 1/N
     z_scalar = -dz/2:dz:(1 - dz/2)
     z_vect   = 0:dz:1
@@ -119,7 +106,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
         p_dim = p_half .+ ρ_half*g*L*p
 
         μ  = PropsSI.("V","H",h_dim,"P",p_dim,"Water")
-        Re = ρ_half*v_half*ρ.*v*Dh./μ
+        Re = abs.(ρ_half*v_half*ρ.*v*Dh./μ)
 
         F_mass = D_upw*(ρ.*v)
         F_momentum = v.*D_upw*v + 1/Fr * (D_center*p)./(M_ρ*ρ) + 0.5*f.(Re)*L/Dh.*v.*abs.(v) .+ 1/Fr
@@ -192,22 +179,24 @@ and manual implementation of Newton-Raphson employing numerical jacobian
     using Plots
     using LaTeXStrings
 
-    T = T .- 273.15
-    T_sat = T_sat .- 273.15
-    p = p/1e3
-    h = h/1e3
-    hl_sat = hl_sat/1e3
+
+    enthalpies = [h, hl_sat]
+    enthalpies = map(x -> x/1e3, enthalpies)
+
+    temperatures = [T, T_sat]
+    temperatures = map(x -> x .- 273.15, temperatures)
+
 
     enthalpy_plot = plot(
-        z_scalar, [h, hl_sat],
+        z_scalar, enthalpies,
         label = [L"H" L"H^{sat}_l"],
         title = L"H", 
-        marker = [2 1.5 0],
+        marker = [2 0],
         legend = :bottomright,
     )
 
     temperature_plot = plot(
-        z_scalar, [T, T_sat],
+        z_scalar, temperatures,
         label = [L"T" L"T_{sat}"],
         title = L"T", 
         marker = [2 0],
@@ -226,7 +215,7 @@ and manual implementation of Newton-Raphson employing numerical jacobian
         z_scalar, p,
         title = L"P", 
         label = nothing,
-        marker = 2,
+        marker = 0,
     )
 
 plots = [

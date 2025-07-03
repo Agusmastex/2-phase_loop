@@ -6,6 +6,7 @@ using CoolProp
 using Plots
 
 """ 
+Name stands for Homogeneous Flow Model (4-eq) Simple Gamma
 Solves the 2-phase steady state vertical pipe flow with constant upstream boundary conditions
 using the 4-equation Homogeneous Flow Model (HFM)
 upwind staggered finite volume
@@ -117,15 +118,6 @@ function run(P_in, j_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
     return π*d_inner*q_flux/(A*hfg) * (1 / (1 + exp(-x)))
   end
 
-#   function Γ(h,p)
-#     hl_sat = PropsSI("H", "P", p, "Q", 0, "Water")
-#     hg_sat = PropsSI("H", "P", p, "Q", 1, "Water")
-#     hfg = hg_sat - hl_sat
-#     transition_width = 0.0001 * hfg  # 10% of hfg as transition zone
-#     x = (h - hl_sat) / transition_width
-#     return π*d_inner*q_flux/(A*hfg) * (1 / (1 + exp(-x)))
-# end
-
 # Root function
     function F(Q)
         matrix = reshape(Q,N+1,5)
@@ -139,11 +131,13 @@ function run(P_in, j_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
 
         ρg = f_hat_g.(p_dim)/ρg0
 
+        Γ = zeros(N+1)
+        Γ[z_scalar .< Lh] .= Γ_w.(h_dim[z_scalar .< Lh], p_dim[z_scalar .< Lh])
+
         F_mass = D_upw*(ρ.*v)
-        F_alpha = D_upw*(α.*ρg.*v) - Γ.(h_dim, p_dim)/(ρg0*v_half)
+        F_alpha = D_upw*(α.*ρg.*v) - Γ/(ρg0*v_half)
         F_momentum = v.*D_upw*v + 1/Fr * (D_center*p)./(M_ρ*ρ) + 0.5*f.(Re)*L/Dh.*v.*abs.(v) .+ 1/Fr
         F_energy = D_upw*(ρ.*h.*v) - Ec/Fr * (M_v*v).*(D_center*p) - S/Lh
-        # F_eos = ρ_half*ρ - f_hat.(h_dim, p_dim)
         F_eos = ρ_half*ρ - ρg0*α.*ρg - (1 .- α)*ρl
 
         F_mass[1]     = ρ[1] + ρ[2] - 2

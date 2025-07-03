@@ -2,9 +2,8 @@ using DelimitedFiles
 using Plots
 using LaTeXStrings
 
-models = ["HEM3", "HFM4_SG"]
+models = ["HEM3", "HFM4_SG", "HFM4_SZ"]
 databases = ["relap-2016"]
-nodes = 100
 
 for model_name in models
     include("models\\" * model_name * ".jl")
@@ -31,7 +30,7 @@ function run_model(model_name, conditions, n_nodes)
     [header; matrix]
 end
 
-function produce_data(models, databases)
+function produce_data(models, databases, n_nodes)
     for database in databases
         database_folder = root * "\\data\\" * database
         cd(database_folder)
@@ -51,7 +50,7 @@ function produce_data(models, databases)
 
                 results_name = database * "_" * model_name * "_" * scenario
                 println(results_name)
-                csv = run_model(model_name, conditions, nodes)
+                csv = run_model(model_name, conditions, n_nodes)
                 writedlm(results_name * ".csv", csv, ',')
                 println()
             end
@@ -61,7 +60,7 @@ function produce_data(models, databases)
     end
 end
 
-function plot_data(database)
+function plot_data3(database)
     database_folder = root * "\\data\\" * database
     database_results_folder = root * "\\results\\" * database
     cd(database_folder)
@@ -71,6 +70,13 @@ function plot_data(database)
         p_plot = plot(title = L"P")
 
         cd(database_folder * "\\" *scenario)
+
+        input_file = open("conditions.txt", "r")
+        lines = readlines(input_file)
+        conditions = [split(line, "\t")[1] for line in lines]
+
+        plot_title = "P_{\\mathrm{in}} = $(conditions[1]) \\; \\mathrm{kPa} \\quad v_{\\mathrm{in}} = $(conditions[2]) \\; \\mathrm{m/s} \\quad ΔT_{\\mathrm{sub}} = $(conditions[3]) \\mathrm{ºC} \\quad q^{''} = $(conditions[4]) \\; \\mathrm{kW/m}^2"
+        plot_title = latexstring(plot_title)
 
         (z_α, α) = eachcol(readdlm("alpha.csv", ','))
         (z_T, T) = eachcol(readdlm("T.csv", ','))
@@ -84,9 +90,14 @@ function plot_data(database)
         z_T = z_T*Dh
         z_p = z_p*Dh
 
-        plot!(α_plot, z_α, α, label = "exp")
-        plot!(T_plot, z_T, T, label = "exp")
-        plot!(p_plot, z_p, p, label = "exp")
+        plot!(α_plot, z_α, α, label = "ref")
+        plot!(T_plot, z_T, T, label = "ref")
+        plot!(p_plot, z_p, p, label = "ref")
+
+        Lh = 2.8
+        vline!(α_plot, [Lh], color=:black, label=nothing)
+        vline!(T_plot, [Lh], color=:black, label=nothing)
+        vline!(p_plot, [Lh], color=:black, label=nothing)
 
         cd(database_results_folder * "\\" * scenario)
 
@@ -103,7 +114,13 @@ function plot_data(database)
             plot!(p_plot, field_dict["z"], field_dict["P"], label = model)
             
         end
-        this_plot = plot(α_plot, T_plot, p_plot, layout=(1,3))
+        
+        title = plot(title = plot_title, grid = false, showaxis = false, bottom_margin = -50Plots.px, titlefontsize=11)
+        l = @layout [
+         grid(1,3)
+         a{0.01h}
+        ]   
+        this_plot = plot(α_plot, T_plot, p_plot, title, layout=l)
         plot_name = root * "\\plots\\" * "\\" * database * "\\" * scenario
         try
             savefig(this_plot, plot_name)
@@ -144,11 +161,88 @@ function plot_single(plot, csv_path, plotted_field; label = nothing)
     )
 end
 
-test_mesh_independence("HFM4_SG", [750e3, 1.0, 11, 241e3], [5,10,20,40,80])
+# test_mesh_independence("HFM4_SG", [750e3, 1.0, 11, 241e3], [5,10,20,40,80])
 
-cd(root * "\\results\\mesh_independence\\HFM4_SG")
-p = plot()
-for item in readdir()
-    plot_single(p, item, "P", label=item)
+# cd(root * "\\results\\mesh_independence\\HFM4_SG")
+# p = plot()
+# for item in readdir()
+#     plot_single(p, item, "P", label=item)
+# end
+# display(p)
+
+# produce_data(["HFM4_SZ"], databases, 50)
+
+function full_plot_data(database)
+    database_folder = root * "\\data\\" * database
+    database_results_folder = root * "\\results\\" * database
+    cd(database_folder)
+    for scenario in readdir()
+        α_plot = plot(title = L"\alpha", ylims=(-0.03,0.8))
+        T_plot = plot(title = L"T")
+        p_plot = plot(title = L"P")
+
+        cd(database_folder * "\\" *scenario)
+
+        input_file = open("conditions.txt", "r")
+        lines = readlines(input_file)
+        conditions = [split(line, "\t")[1] for line in lines]
+
+        plot_title = "P_{\\mathrm{in}} = $(conditions[1]) \\; \\mathrm{kPa} \\quad v_{\\mathrm{in}} = $(conditions[2]) \\; \\mathrm{m/s} \\quad ΔT_{\\mathrm{sub}} = $(conditions[3]) \\mathrm{ºC} \\quad q^{''} = $(conditions[4]) \\; \\mathrm{kW/m}^2"
+        plot_title = latexstring(plot_title)
+
+        (z_α, α) = eachcol(readdlm("alpha.csv", ','))
+        (z_T, T) = eachcol(readdlm("T.csv", ','))
+        (z_p, p) = eachcol(readdlm("P.csv", ','))
+
+        d_inner = 0.0191
+        d_outer = 0.0381
+        Dh = d_outer - d_inner
+
+        z_α = z_α*Dh
+        z_T = z_T*Dh
+        z_p = z_p*Dh
+
+        plot!(α_plot, z_α, α, label = "ref")
+        plot!(T_plot, z_T, T, label = "ref")
+        plot!(p_plot, z_p, p, label = "ref")
+
+        Lh = 2.8
+        vline!(α_plot, [Lh], color=:black, label=nothing)
+        vline!(T_plot, [Lh], color=:black, label=nothing)
+        vline!(p_plot, [Lh], color=:black, label=nothing)
+
+        cd(database_results_folder * "\\" * scenario)
+
+        for result_name in readdir()
+            matrix = readdlm(result_name, ',')
+            header = matrix[1,:]
+            fields = eachcol(matrix[2:end,:])    
+            field_dict = Dict(zip(header, fields))
+
+            model = split(result_name, "_")[2]
+
+            plot!(α_plot, field_dict["z"], field_dict["alpha"], label = model)
+            plot!(T_plot, field_dict["z"], field_dict["T"], label = model)
+            plot!(p_plot, field_dict["z"], field_dict["P"], label = model)
+            
+        end
+        
+        title = plot(title = plot_title, grid = false, showaxis = false, bottom_margin = -50Plots.px, titlefontsize=11)
+        l = @layout [
+         grid(1,3)
+         a{0.01h}
+        ]   
+        this_plot = plot(α_plot, T_plot, p_plot, title, layout=l)
+        plot_name = root * "\\plots\\" * "\\" * database * "\\" * scenario
+        try
+            savefig(this_plot, plot_name)
+        catch
+            mkpath(root * "\\plots\\" * "\\" * database)
+            savefig(this_plot, plot_name)
+        end
+    end
+
 end
-display(p)
+
+
+plot_data("relap-2016")

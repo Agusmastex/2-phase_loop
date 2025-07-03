@@ -6,7 +6,8 @@ using CoolProp
 using Plots
 
 """ 
-Solves the 2-phase steady state vertical pipe flow with constant upstream boundary conditions
+Name stands for Homogeneous Equilibrium Model (3-eq) 
+Solves the 2-phase steady state vertical pipe flow with constant upstream boundary conditions 
 using the 3-equation Homogeneous Equilibrium Model (HEM)
 collocated upwind finite difference
 nondimensional version of the equations
@@ -143,8 +144,6 @@ function run(P_in, v_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
     res = 1.0
     k = 0
     while res > tol
-        # global Qk, res, k
-
         k = k + 1 
         print(k)
 
@@ -185,6 +184,9 @@ function run(P_in, v_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
        "alpha" => α,
        "T" => T,
        "P" => p,
+       "hl_sat" => hl_sat,
+       "T_sat" => T_sat,
+       "h" => h,
     )
 
 return fields
