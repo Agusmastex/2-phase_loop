@@ -196,7 +196,6 @@ this model fails to capture subcooled boiling
 
     T = PropsSI.("T", "P", p, "H", h, "Water")
     Q = PropsSI.("Q", "P", p, "H", h, "Water")
-    Q[Q .== -1] .= 0
     ρg = PropsSI.("D", "P", p, "Q", 1, "Water")
     ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
 

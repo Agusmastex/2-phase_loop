@@ -172,21 +172,26 @@ function run(P_in, v_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
     hl_sat = PropsSI.("H", "P", p, "Q", 0, "Water")
     T_sat = PropsSI.("T", "P", p, "Q", 1, "Water")
 
+# Output
+
     dz = L/N
     z_scalar = -dz/2:dz:(L - dz/2)
     Lh = Lh*L
     z0_heater = z0_heater*L
+
     T = T .- 273.15
+    h = h/1e3
+    hl_sat = hl_sat/1e3
     p = p/1e3
 
     fields = Dict(
        "z" => z_scalar,
        "alpha" => α,
        "T" => T,
-       "P" => p,
-       "hl_sat" => hl_sat,
        "T_sat" => T_sat,
        "h" => h,
+       "hl_sat" => hl_sat,
+       "p" => p,
     )
 
 return fields

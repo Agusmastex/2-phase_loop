@@ -1,4 +1,4 @@
-module HFM4_SG
+module HFM4SG
 
 using LinearAlgebra
 using SparseArrays
@@ -102,7 +102,7 @@ function run(P_in, j_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
   end
 
 # Vapor generation
-  function Γ(h,p)
+  function Γ_w(h,p)
     hl_sat = PropsSI("H", "P", p, "Q", 0, "Water")
     hg_sat = PropsSI("H", "P", p, "Q", 1, "Water")
     hfg = hg_sat - hl_sat
@@ -191,22 +191,34 @@ function run(P_in, j_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
     h = h_half .+ (h_Lh - h_half)*h
     p = p_half .+ ρ_half*g*L*p
 
-    T = PropsSI.("T", "P", p, "H", h, "Water") .- 273.15
-    p = p/1e3 #kPa
-    h = h/1e3 #kJ
+    T = PropsSI.("T", "P", p, "H", h, "Water")
+    Q = PropsSI.("Q", "P", p, "H", h, "Water")
+    ρg = PropsSI.("D", "P", p, "Q", 1, "Water")
+    ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
 
+    hl_sat = PropsSI.("H", "P", p, "Q", 0, "Water")
+    T_sat = PropsSI.("T", "P", p, "Q", 1, "Water")
 
-# Plotting 
+# Output
+
     dz = L/N
     z_scalar = -dz/2:dz:(L - dz/2)
     Lh = Lh*L
     z0_heater = z0_heater*L
 
+    T = T .- 273.15
+    h = h/1e3
+    hl_sat = hl_sat/1e3
+    p = p/1e3
+
     fields = Dict(
        "z" => z_scalar,
        "alpha" => α,
        "T" => T,
-       "P" => p,
+       "T_sat" => T_sat,
+       "h" => h,
+       "hl_sat" => hl_sat,
+       "p" => p,
     )
 
 return fields

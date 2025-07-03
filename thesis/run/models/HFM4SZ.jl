@@ -1,4 +1,4 @@
-module HFM4_SZ
+module HFM4SZ
 
 using LinearAlgebra
 using SparseArrays
@@ -7,22 +7,22 @@ using Plots
 
 """ 
 Name stands for Homogeneous Flow Model (4-eq) Simple Gamma
-Solves the 2-phase steady state vertical pipe flow with constant upstream boundary conditions
+Solves the 2-phase steady state 1D vertical flow with constant upstream boundary conditions
 using the 4-equation Homogeneous Flow Model (HFM)
+the Saha-Zuber correlation for critical enthalpy of the point of Net Vapor Generation
+the Lahey method for subcooled boiling source term in the vapor mass equation
 upwind staggered finite volume
 nondimensional version of the equations
 and manual implementation of Newton-Raphson employing numerical jacobian
 """
 
-function run(P_in, j_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
-
-# Geometry
-    L = 2.8 + 1.7
-    d_inner = 0.0191
-    d_outer = 0.0381
-    Dh = d_outer - d_inner
-    Lh = 2.8/L
-    z0_heater = 0.0/L
+function run(P_in, j_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
+    L = geom.L
+    Dh = geom.Dh
+    Lh = geom.Lh/L
+    z0_heater = geom.z0_heater/L
+    A_flow = geom.A_flow
+    A_wall = geom.A_wall
 
 # Grid
     N  = n_nodes
@@ -43,18 +43,17 @@ function run(P_in, j_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
     ρl = ρ_half
     
     # True constants
-    A = 0.25*π*(d_outer^2 - d_inner^2)
     g = 9.8
     rugosity = 0
     cp_l = PropsSI("C", "P", p_half, "T", T_half, "Water")
     # Heat input
     # q_flux = 156e3
     # q_flux = 640e3
-    Qh = q_flux*pi*d_inner*Lh*L
+    Qh = q_flux*A_wall
     S  = zeros(N+1)    
     S[z0_heater .< z_scalar .< z0_heater + Lh] .=  1
     # Derived quantities
-    m_dot = ρ_half*v_half*A
+    m_dot = ρ_half*v_half*A_flow
     h_Lh = h_half + Qh/m_dot
     # Dimensionless groups
     Fr = v_half^2/(g*L)
@@ -120,12 +119,11 @@ function run(P_in, j_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
         h_cr = hl_sat - Nu_mod/455 *cp_l
     end
 
-    Γw = π*d_inner*q_flux/(A*hfg)
+    Γw = Qh/(A_flow*Lh*hfg)
     
-    # ρg = PropsSI("D", "P", p, "H", h, "Water")
-    # ρl = PropsSI("D", "P", p, "H", h, "Water")
-    # ε = ρl*(hl - minimum([hl, hl_sat]))/(ρg*hfg)
-    ε = 0
+    ρl = PropsSI("D", "P", p, "Q", 0, "Water")
+    ρg = PropsSI("D", "P", p, "Q", 1, "Water")
+    ε = ρl*(hl - minimum([hl, hl_sat]))/(ρg*hfg)
     Mul = (hl - h_cr)/((hl_sat - h_cr)*(1 + ε))
 
     if hl > hl_sat
@@ -216,22 +214,49 @@ function run(P_in, j_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
     h = h_half .+ (h_Lh - h_half)*h
     p = p_half .+ ρ_half*g*L*p
 
-    T = PropsSI.("T", "P", p, "H", h, "Water") .- 273.15
-    p = p/1e3 #kPa
-    h = h/1e3 #kJ
+    T = PropsSI.("T", "P", p, "H", h, "Water")
+    ρg = PropsSI.("D", "P", p, "Q", 1, "Water")
+    ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
 
+    kl = PropsSI.("conductivity", "P", p, "Q", 1, "Water")
+    Pe = ρ_half*v_half*Dh*cp_l./kl
 
-# Plotting 
+    Nu_mod = q_flux*Dh./kl
+    St_mod = Nu_mod./Pe
+
+    hl_sat = PropsSI.("H", "P", p, "Q", 0, "Water")
+    h_cr = zeros(N+1)
+    h_cr[Pe .> 70_000] .= (hl_sat - St_mod/0.0065 * cp_l)[Pe .> 70_000]
+    h_cr[Pe .< 70_000] .= (hl_sat - Nu_mod/455 *cp_l)[Pe .< 70_000]
+
+    T_cr = PropsSI.("T", "P", p, "H", h_cr, "Water")
+    T_sat = PropsSI.("T", "P", p, "Q", 1, "Water")
+
+# Output
     dz = L/N
     z_scalar = -dz/2:dz:(L - dz/2)
     Lh = Lh*L
     z0_heater = z0_heater*L
 
+    T = T .- 273.15
+    T_sat = T_sat .- 273.15
+    T_cr = T_cr .- 273.15
+    h = h/1e3
+    hl_sat = hl_sat/1e3
+    h_cr = h_cr/1e3
+    p = p/1e3
+
     fields = Dict(
        "z" => z_scalar,
        "alpha" => α,
        "T" => T,
-       "P" => p,
+       "T_sat" => T_sat,
+       "T_cr" => T_cr,
+       "h" => h,
+       "hl_sat" => hl_sat,
+       "h_cr" => h_cr,
+       "p" => p,
+       "Pe" => Pe,
     )
 
 return fields

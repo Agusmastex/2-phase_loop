@@ -2,7 +2,7 @@ using DelimitedFiles
 using Plots
 using LaTeXStrings
 
-models = ["HEM3", "HFM4_SG", "HFM4_SZ"]
+models = ["HEM3", "HFM4SG", "HFM4SZ"]
 databases = ["relap-2016"]
 
 for model_name in models
@@ -111,7 +111,7 @@ function plot_data3(database)
 
             plot!(α_plot, field_dict["z"], field_dict["alpha"], label = model)
             plot!(T_plot, field_dict["z"], field_dict["T"], label = model)
-            plot!(p_plot, field_dict["z"], field_dict["P"], label = model)
+            plot!(p_plot, field_dict["z"], field_dict["p"], label = model)
             
         end
         
@@ -170,9 +170,11 @@ end
 # end
 # display(p)
 
-# produce_data(["HFM4_SZ"], databases, 50)
+# produce_data(models, databases, 50)
 
-function full_plot_data(database)
+# plot_data3("relap-2016")
+
+function four_plots(database, models)
     database_folder = root * "\\data\\" * database
     database_results_folder = root * "\\results\\" * database
     cd(database_folder)
@@ -180,6 +182,7 @@ function full_plot_data(database)
         α_plot = plot(title = L"\alpha", ylims=(-0.03,0.8))
         T_plot = plot(title = L"T")
         p_plot = plot(title = L"P")
+        h_plot = plot(title = L"H")
 
         cd(database_folder * "\\" *scenario)
 
@@ -190,9 +193,9 @@ function full_plot_data(database)
         plot_title = "P_{\\mathrm{in}} = $(conditions[1]) \\; \\mathrm{kPa} \\quad v_{\\mathrm{in}} = $(conditions[2]) \\; \\mathrm{m/s} \\quad ΔT_{\\mathrm{sub}} = $(conditions[3]) \\mathrm{ºC} \\quad q^{''} = $(conditions[4]) \\; \\mathrm{kW/m}^2"
         plot_title = latexstring(plot_title)
 
-        (z_α, α) = eachcol(readdlm("alpha.csv", ','))
-        (z_T, T) = eachcol(readdlm("T.csv", ','))
-        (z_p, p) = eachcol(readdlm("P.csv", ','))
+        (z_α, α_ref) = eachcol(readdlm("alpha.csv", ','))
+        (z_T, T_ref) = eachcol(readdlm("T.csv", ','))
+        (z_p, p_ref) = eachcol(readdlm("P.csv", ','))
 
         d_inner = 0.0191
         d_outer = 0.0381
@@ -202,9 +205,9 @@ function full_plot_data(database)
         z_T = z_T*Dh
         z_p = z_p*Dh
 
-        plot!(α_plot, z_α, α, label = "ref")
-        plot!(T_plot, z_T, T, label = "ref")
-        plot!(p_plot, z_p, p, label = "ref")
+        plot!(α_plot, z_α, α_ref, label = "ref")
+        plot!(T_plot, z_T, T_ref, label = "ref")
+        plot!(p_plot, z_p, p_ref, label = "ref")
 
         Lh = 2.8
         vline!(α_plot, [Lh], color=:black, label=nothing)
@@ -214,25 +217,82 @@ function full_plot_data(database)
         cd(database_results_folder * "\\" * scenario)
 
         for result_name in readdir()
+            model = split(result_name, "_")[2]
+            if model in models
             matrix = readdlm(result_name, ',')
             header = matrix[1,:]
             fields = eachcol(matrix[2:end,:])    
             field_dict = Dict(zip(header, fields))
 
-            model = split(result_name, "_")[2]
 
-            plot!(α_plot, field_dict["z"], field_dict["alpha"], label = model)
-            plot!(T_plot, field_dict["z"], field_dict["T"], label = model)
-            plot!(p_plot, field_dict["z"], field_dict["P"], label = model)
+            enthalpies = []
+            temperatures = []
+            enthalpy_labels = []
+            temperature_labels = []
+
+            try
+                enthalpies = [field_dict["h"], field_dict["hl_sat"], field_dict["h_cr"]]
+                temperatures = [field_dict["T"]]#, field_dict["T_sat"], field_dict["T_cr"]]
+                enthalpy_labels = [L"H" L"H^{sat}_l" L"H_{cr}"]
+                temperature_labels = [L"T" L"T_{sat}" L"T_{cr}"]
+            catch
+                enthalpies = [field_dict["h"], field_dict["hl_sat"]]
+                temperatures = [field_dict["T"]]#, field_dict["T_sat"]]
+                enthalpy_labels = [L"H" L"H^{sat}_l"]
+                temperature_labels = [L"T" L"T_{sat}"]
+            end
+
+            enthalpy_labels = map(x -> x * " $model", enthalpy_labels)
+            temperature_labels = map(x -> x * " $model", temperature_labels)
+
+            z_scalar = field_dict["z"]
+            α = field_dict["alpha"]
+            p = field_dict["p"]
+
+            plot!(
+                h_plot,
+                z_scalar, enthalpies,
+                label = enthalpy_labels,
+                title = L"H", 
+                marker = 0,
+                legend = :bottomright,
+            )
+
+            plot!(
+                T_plot,
+                z_scalar, temperatures,
+                label = temperature_labels,
+                title = L"T", 
+                marker = 0,
+                legend = :bottomright,
+            )
+
+            plot!(
+                α_plot,
+                z_scalar, α,
+                title = L"\alpha", 
+                label = model,
+                marker = 0,
+                ylims = (0, 0.8),
+            )
+
+            plot!(
+                p_plot,
+                z_scalar, p,
+                title = L"P", 
+                label = model,
+                marker = 0,
+            )
+        end
             
         end
         
         title = plot(title = plot_title, grid = false, showaxis = false, bottom_margin = -50Plots.px, titlefontsize=11)
         l = @layout [
-         grid(1,3)
+         grid(2,2)
          a{0.01h}
         ]   
-        this_plot = plot(α_plot, T_plot, p_plot, title, layout=l)
+        this_plot = plot(h_plot, α_plot, T_plot, p_plot, title, layout=l ,size = (1000, 1000))
         plot_name = root * "\\plots\\" * "\\" * database * "\\" * scenario
         try
             savefig(this_plot, plot_name)
@@ -244,5 +304,5 @@ function full_plot_data(database)
 
 end
 
-
-plot_data("relap-2016")
+# produce_data(["HFM4SZ"], ["relap-2016"], 20)
+# four_plots("relap-2016", ["HFM4SZ"])
