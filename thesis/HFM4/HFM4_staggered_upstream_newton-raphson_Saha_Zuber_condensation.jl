@@ -1,4 +1,4 @@
-include("C:\\Users\\mateo\\Files\\Investigación\\2-phase_loop\\thesis\\run\\models\\HFM4SZ.jl")
+include("C:\\Users\\mateo\\Files\\Investigación\\2-phase_loop\\thesis\\run\\models\\HFM4SZ_C.jl")
     using Plots
     using LaTeXStrings
 
@@ -7,6 +7,7 @@ Solves the 2-phase steady state 1D vertical flow with constant upstream boundary
 using the 4-equation Homogeneous Flow Model (HFM)
 the Saha-Zuber correlation for critical enthalpy of the point of Net Vapor Generation
 the Lahey method for subcooled boiling source term in the vapor mass equation
+Unal's correlation for condensation
 upwind staggered finite volume
 nondimensional version of the equations
 and manual implementation of Newton-Raphson employing numerical jacobian
@@ -22,7 +23,7 @@ for scenario in [
     ]
 
 # scenario = "fig-4"
-n_nodes = 40
+n_nodes = 10
 
 # Conditions input
     function read_conditions(conditions_filepath)
@@ -61,7 +62,7 @@ n_nodes = 40
 
 # Run and unpack
 
-   field_dict =  HFM4SZ.run(P_in, v_in, ΔT_sub, q_flux, geom, n_nodes=n_nodes)
+   field_dict =  HFM4SZ_C.run(P_in, v_in, ΔT_sub, q_flux, geom, n_nodes=n_nodes)
    z = field_dict["z"]
    α = field_dict["alpha"]
    T = field_dict["T"]

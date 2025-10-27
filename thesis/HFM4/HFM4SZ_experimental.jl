@@ -13,16 +13,12 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 """
 
 for scenario in [
-    "fig-2",
     "fig-3", 
-    "fig-4", 
-    "fig-7",
     "fig-8",
-    "fig-9"
     ]
 
 # scenario = "fig-4"
-n_nodes = 40
+n_nodes = 10
 
 # Conditions input
     function read_conditions(conditions_filepath)

@@ -1,3 +1,6 @@
 ﻿.vscode
 pre-thesis
 thesis/databases
+/thesis/run/plots
+/thesis/saved results
+/thesis/run/results

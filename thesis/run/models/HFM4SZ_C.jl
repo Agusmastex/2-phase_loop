@@ -1,4 +1,4 @@
-module HFM4SZ
+module HFM4SZ_C
 
 using LinearAlgebra
 using SparseArrays
@@ -11,6 +11,7 @@ Solves the 2-phase steady state 1D vertical flow with constant upstream boundary
 using the 4-equation Homogeneous Flow Model (HFM)
 the Saha-Zuber correlation for critical enthalpy of the point of Net Vapor Generation
 the Lahey method for subcooled boiling source term in the vapor mass equation
+Unal's correlation for condensation
 upwind staggered finite volume
 nondimensional version of the equations
 and manual implementation of Newton-Raphson employing numerical jacobian
@@ -121,9 +122,9 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
 
     Γw = Qh/(A_flow*Lh*L*hfg)
     
-    ρ_l = PropsSI("D", "P", p, "Q", 0, "Water")
-    ρ_g = PropsSI("D", "P", p, "Q", 1, "Water")
-    ε = ρ_l*(hl_sat - minimum([hl, hl_sat]))/(ρ_g*hfg)
+    ρl = PropsSI("D", "P", p, "Q", 0, "Water")
+    ρg = PropsSI("D", "P", p, "Q", 1, "Water")
+    ε = ρl*(hl_sat - minimum([hl, hl_sat]))/(ρg*hfg)
     Mul = (hl - h_cr)/((hl_sat - h_cr)*(1 + ε))
     if hl > hl_sat
         Γw
@@ -133,12 +134,31 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
         0
     end
 
-    # Smoothed step function
-    # transition_width = 0.0001 * hfg
-    # x = (h - h_cr) / transition_width
-    # return Γ_w * (1 / (1 + exp(-x)))
-
   end
+
+# Condensation
+  function Γ_ig(h,p,α)
+
+    hl_sat = PropsSI("H", "P", p, "Q", 0, "Water")
+    hg_sat = PropsSI("H", "P", p, "Q", 1, "Water")
+    hfg = hg_sat - hl_sat
+
+    T_sat = PropsSI("T", "P", p, "Q", 1, "Water")
+
+    ρl = PropsSI("D", "P", p, "Q", 0, "Water")
+    ρg = PropsSI("D", "P", p, "Q", 1, "Water")
+    C = 61
+    H_il = 1.8*C*hfg*ρl*ρg*α/(ρl - ρg)
+
+    T = PropsSI("T", "H", h, "P", p, "Water")
+    T_sat = PropsSI("T", "P", p, "Q", 1, "Water")
+
+    H_il*(T - T_sat)/hfg
+  end
+# Net vapor generation
+    function Γ_tot(h,p,α)
+        Γ_w(h,p) + Γ_ig(h,p,α)
+    end
 
 # Root function
     function F(Q)
@@ -154,7 +174,7 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
         ρg = f_hat_g.(p_dim)/ρg0
 
         Γ = zeros(N+1)
-        Γ[z_scalar .< Lh] .= Γ_w.(h_dim[z_scalar .< Lh], p_dim[z_scalar .< Lh])
+        Γ[z_scalar .< Lh] .= Γ_tot.(h_dim[z_scalar .< Lh], p_dim[z_scalar .< Lh], α[z_scalar .< Lh])
 
         F_mass = D_upw*(ρ.*v)
         F_alpha = D_upw*(α.*ρg.*v) - Γ/(ρg0*v_half)

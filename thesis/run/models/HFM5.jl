@@ -47,8 +47,6 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
     rugosity = 0
     cp_l = PropsSI("C", "P", p_half, "T", T_half, "Water")
     # Heat input
-    # q_flux = 156e3
-    # q_flux = 640e3
     Qh = q_flux*A_wall
     S  = zeros(N+1)    
     S[z0_heater .< z_scalar .< z0_heater + Lh] .=  1
@@ -95,6 +93,7 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
 
 # Friction factor
   function f(Re)
+    return 0.2
     f1 = (-2.457*log((7 / Re)^0.9 + 0.27*rugosity/Dh))^16
     f2 = (37530 / Re)^12
     return 8*((8 / Re)^12 + (f1 + f2)^(-1.5))^(1/12)
@@ -121,10 +120,12 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
 
     Γw = Qh/(A_flow*Lh*L*hfg)
     
-    ρ_l = PropsSI("D", "P", p, "Q", 0, "Water")
-    ρ_g = PropsSI("D", "P", p, "Q", 1, "Water")
-    ε = ρ_l*(hl_sat - minimum([hl, hl_sat]))/(ρ_g*hfg)
+    # ρ_l = PropsSI("D", "P", p, "Q", 0, "Water")
+    # ρ_g = PropsSI("D", "P", p, "Q", 1, "Water")
+    # ε = ρ_l*(hl - minimum([hl, hl_sat]))/(ρ_g*hfg)
+    ε = 0
     Mul = (hl - h_cr)/((hl_sat - h_cr)*(1 + ε))
+
     if hl > hl_sat
         Γw
     elseif h_cr < hl < hl_sat
@@ -148,8 +149,8 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
         h_dim = h_half .+ (h_Lh - h_half)*h
         p_dim = p_half .+ ρ_half*g*L*p
 
-        μ  = PropsSI.("V","H",h_dim,"P",p_dim,"Water")
-        Re = abs.(ρ_half*v_half*ρ.*v*Dh./μ)
+        # μ  = PropsSI.("V","H",h_dim,"P",p_dim,"Water")
+        # Re = abs.(ρ_half*v_half*ρ.*v*Dh./μ)
 
         ρg = f_hat_g.(p_dim)/ρg0
 
@@ -158,7 +159,7 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
 
         F_mass = D_upw*(ρ.*v)
         F_alpha = D_upw*(α.*ρg.*v) - Γ/(ρg0*v_half)
-        F_momentum = v.*D_upw*v + 1/Fr * (D_center*p)./(M_ρ*ρ) + 0.0*f.(Re)*L/Dh.*v.*abs.(v) .+ 1/Fr
+        F_momentum = v.*D_upw*v + 1/Fr * (D_center*p)./(M_ρ*ρ) + 0.0*f.(1)*L/Dh.*v.*abs.(v) .+ 1/Fr
         F_energy = D_upw*(ρ.*h.*v) - Ec/Fr * (M_v*v).*(D_center*p) - S/Lh
         F_eos = ρ_half*ρ - ρg0*α.*ρg - (1 .- α)*ρl
 
