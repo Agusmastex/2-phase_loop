@@ -17,13 +17,21 @@ nondimensional version of the equations
 and manual implementation of Newton-Raphson employing numerical jacobian
 """
 
-function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
-    L = geom.L
-    Dh = geom.Dh
-    Lh = geom.Lh/L
-    z0_heater = geom.z0_heater/L
-    A_flow = geom.A_flow
-    A_wall = geom.A_wall
+function run(conditions, geom; n_nodes=20) # velocity given
+    P_in = conditions["P_in"]
+    v_in = conditions["v_in"]
+    ΔT_sub = conditions["T_sub"]
+    q_flux = conditions["q_flux"]
+
+    L = geom["L"]
+    d_inner = geom["d_inner"]
+    d_outer = geom["d_outer"]
+    Lh = geom["Lh"]/L
+    z0_heater = geom["z0_heater"]/L
+
+    Dh = d_outer - d_inner
+    A_flow = 0.25*π*(d_outer^2 - d_inner^2)
+    A_wall = π*d_inner*Lh*L
 
 # Grid
     N  = n_nodes
@@ -102,7 +110,7 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
   end
 
 # Vapor generation
-  function Γ_w(h,p)
+  function Γ_tot(h,p,α)
     hl_sat = PropsSI("H", "P", p, "Q", 0, "Water")
     hg_sat = PropsSI("H", "P", p, "Q", 1, "Water")
     hfg = hg_sat - hl_sat
@@ -120,45 +128,38 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
         h_cr = hl_sat - Nu_mod/455 *cp_l
     end
 
-    Γw = Qh/(A_flow*Lh*L*hfg)
+    Γ_w = Qh/(A_flow*Lh*L*hfg)
     
     ρl = PropsSI("D", "P", p, "Q", 0, "Water")
     ρg = PropsSI("D", "P", p, "Q", 1, "Water")
     ε = ρl*(hl_sat - minimum([hl, hl_sat]))/(ρg*hfg)
     Mul = (hl - h_cr)/((hl_sat - h_cr)*(1 + ε))
     if hl > hl_sat
-        Γw
+        Γ_w =  Γ_w
     elseif h_cr < hl < hl_sat
-        Mul*Γw
+        Mul*Γ_w
     else
         0
     end
 
-  end
-
-# Condensation
-  function Γ_ig(h,p,α)
-
-    hl_sat = PropsSI("H", "P", p, "Q", 0, "Water")
-    hg_sat = PropsSI("H", "P", p, "Q", 1, "Water")
-    hfg = hg_sat - hl_sat
-
     T_sat = PropsSI("T", "P", p, "Q", 1, "Water")
 
-    ρl = PropsSI("D", "P", p, "Q", 0, "Water")
-    ρg = PropsSI("D", "P", p, "Q", 1, "Water")
-    C = 61
-    H_il = 1.8*C*hfg*ρl*ρg*α/(ρl - ρg)
+    if α > 0.25
+        F5 = 0.075
+    else 
+        C = 65 - 5.69e-5 * (p - 1e5)
+        F5 = 1.8*C*exp(-45*α) + 0.075
+    end
+
+    H_il = F5*hfg*ρl*ρg*α/(ρl - ρg)
 
     T = PropsSI("T", "H", h, "P", p, "Water")
     T_sat = PropsSI("T", "P", p, "Q", 1, "Water")
 
-    H_il*(T - T_sat)/hfg
+   Γ_ig = H_il*(T - T_sat)/hfg
+
+   return Γ_w + Γ_ig
   end
-# Net vapor generation
-    function Γ_tot(h,p,α)
-        Γ_w(h,p) + Γ_ig(h,p,α)
-    end
 
 # Root function
     function F(Q)
@@ -233,12 +234,13 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
     h = h_half .+ (h_Lh - h_half)*h
     p = p_half .+ ρ_half*g*L*p
 
+    Γ = Γ_tot.(h,p,α)
+    Γ[z_scalar .> Lh] .= 0
+
     T = PropsSI.("T", "P", p, "H", h, "Water")
     ρg = PropsSI.("D", "P", p, "Q", 1, "Water")
     ρl = PropsSI.("D", "P", p, "Q", 0, "Water")
 
-    Γw = Γ_w.(h,p)
-    Γw[z_scalar .> Lh] .= 0
 
     kl = PropsSI.("conductivity", "P", p, "Q", 1, "Water")
     Pe = ρ_half*v_half*Dh*cp_l./kl
@@ -273,7 +275,7 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
        "h_cr" => h_cr,
        "p" => p,
        "Pe" => Pe,
-       "Gamma" => Γw,
+       "Gamma" => Γ,
     )
 
 return fields

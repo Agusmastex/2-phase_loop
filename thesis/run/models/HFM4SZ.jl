@@ -16,13 +16,21 @@ nondimensional version of the equations
 and manual implementation of Newton-Raphson employing numerical jacobian
 """
 
-function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
-    L = geom.L
-    Dh = geom.Dh
-    Lh = geom.Lh/L
-    z0_heater = geom.z0_heater/L
-    A_flow = geom.A_flow
-    A_wall = geom.A_wall
+function run(conditions, geom; n_nodes=20) # velocity given
+    P_in = conditions["P_in"]
+    v_in = conditions["v_in"]
+    ΔT_sub = conditions["T_sub"]
+    q_flux = conditions["q_flux"]
+
+    L = geom["L"]
+    d_inner = geom["d_inner"]
+    d_outer = geom["d_outer"]
+    Lh = geom["Lh"]/L
+    z0_heater = geom["z0_heater"]/L
+
+    Dh = d_outer - d_inner
+    A_flow = 0.25*π*(d_outer^2 - d_inner^2)
+    A_wall = π*d_inner*Lh*L
 
 # Grid
     N  = n_nodes
@@ -43,9 +51,8 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
     ρl = ρ_half
     
     # True constants
-    g = 9.8
+    g = 9.81
     rugosity = 0
-    cp_l = PropsSI("C", "P", p_half, "T", T_half, "Water")
     # Heat input
     # q_flux = 156e3
     # q_flux = 640e3
@@ -106,6 +113,7 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
     hg_sat = PropsSI("H", "P", p, "Q", 1, "Water")
     hfg = hg_sat - hl_sat
     kl = PropsSI("conductivity", "P", p, "Q", 1, "Water")
+    cp_l = PropsSI("C", "P", p, "Q", 0, "Water")
 
     hl = h # ?
 
@@ -132,12 +140,6 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
     else
         0
     end
-
-    # Smoothed step function
-    # transition_width = 0.0001 * hfg
-    # x = (h - h_cr) / transition_width
-    # return Γ_w * (1 / (1 + exp(-x)))
-
   end
 
 # Root function
@@ -221,6 +223,7 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
     Γw[z_scalar .> Lh] .= 0
 
     kl = PropsSI.("conductivity", "P", p, "Q", 1, "Water")
+    cp_l = PropsSI.("C", "P", p, "Q", 0, "Water")
     Pe = ρ_half*v_half*Dh*cp_l./kl
 
 
@@ -230,8 +233,8 @@ function run(P_in, v_in, ΔT_sub, q_flux, geom; n_nodes=20) # velocity given
 
     hl_sat = PropsSI.("H", "P", p, "Q", 0, "Water")
     h_cr = zeros(N+1)
-    h_cr[Pe .> 70_000] .= (hl_sat - St_mod/0.0065 * cp_l)[Pe .> 70_000]
-    h_cr[Pe .< 70_000] .= (hl_sat - Nu_mod/455 *cp_l)[Pe .< 70_000]
+    h_cr[Pe .> 70_000] .= (hl_sat - St_mod/0.0065 .* cp_l)[Pe .> 70_000]
+    h_cr[Pe .< 70_000] .= (hl_sat - Nu_mod/455 .* cp_l)[Pe .< 70_000]
 
     T_cr = PropsSI.("T", "P", p, "H", h_cr, "Water")
     T_sat = PropsSI.("T", "P", p, "Q", 1, "Water")
