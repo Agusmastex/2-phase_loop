@@ -1,0 +1,4 @@
+P_in = 232.6e3	# P_in [Pa]
+G = 896.7	# G [kg/(m^2 s)]
+T_sub = 5.4	# ΔT_sub [ºC]
+q_flux = 68.0e3	# q'' [kW/m^2]
