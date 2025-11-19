@@ -1,36 +1,25 @@
-include("C:\\Users\\mateo\\Files\\Investigación\\2-phase_loop\\thesis\\run\\models\\HFM4SZ.jl")
 using Plots
 using LaTeXStrings
 using TOML
+using DelimitedFiles
 
-""" 
-Solves the 2-phase steady state 1D vertical flow with constant upstream boundary conditions
-using the 4-equation Homogeneous Flow Model (HFM)
-the Saha-Zuber correlation for critical enthalpy of the point of Net Vapor Generation
-the Lahey method for subcooled boiling source term in the vapor mass equation
-upwind staggered finite volume
-nondimensional version of the equations
-and manual implementation of Newton-Raphson employing numerical jacobian
-"""
+# model = "HFM4SZ"
+model = "HEM3"
+n_nodes = 15
 
-for scenario in [
-    # "fig-2",
-    # "fig-3", 
-    # "fig-4", 
-    # "fig-7",
-    # "fig-8",
-    "fig-9"
-    ]
+root = "C:\\Users\\mateo\\Files\\Investigación\\2-phase_loop\\thesis\\run"
+include("C:\\Users\\mateo\\Files\\Investigación\\2-phase_loop\\thesis\\run\\models\\" * model * ".jl")
 
-n_nodes = 20
+for scenario in readdir(root * "\\data")
+
+    println(scenario)
 
 # Conditions and geometry input
-    database_path = "C:\\Users\\mateo\\Files\\Investigación\\2-phase_loop\\thesis\\run\\data\\relap-2016\\"
-    cd(database_path * scenario)
+    cd(root * "\\data\\" * scenario)
 
     conditions = TOML.parsefile("conditions.toml")
     P_in = conditions["P_in"]
-    v_in = conditions["v_in"]
+    # v_in = conditions["v_in"]
     ΔT_sub = conditions["T_sub"]
     q_flux = conditions["q_flux"]
 
@@ -41,30 +30,29 @@ n_nodes = 20
     d_outer = geom["d_outer"]
     Dh = d_outer - d_inner
 
-
 # Run and unpack
 
-   field_dict =  HFM4SZ.run(conditions, geom, n_nodes=n_nodes)
+   field_dict =  HEM3.run(conditions, geom, n_nodes=n_nodes)
    z      = field_dict["z"]
    α      = field_dict["alpha"]
    T      = field_dict["T"]
    T_sat  = field_dict["T_sat"]
-   T_cr   = field_dict["T_cr"]
+#    T_cr   = field_dict["T_cr"]
    h      = field_dict["h"]
    hl_sat = field_dict["hl_sat"]
-   h_cr   = field_dict["h_cr"]
+#    h_cr   = field_dict["h_cr"]
    p      = field_dict["p"]
-   Pe     = field_dict["Pe"]
-   Γ      = field_dict["Gamma"]
-
-    println()
+#    Pe     = field_dict["Pe"]
+#    Γ      = field_dict["Gamma"]
+   v_in   = round(field_dict["v"][1], digits=2)
 
 # Plotting 
 
-    enthalpies = [h, hl_sat, h_cr]
+    enthalpies = [h, hl_sat]#, h_cr]
     enthalpies = map(x -> x/1e3, enthalpies)
-    temperatures = [T, T_sat, T_cr]
+    temperatures = [T, T_sat]#, T_cr]
     temperatures = map(x -> x .- 273.15, temperatures)
+    p = p/1e3
 
     enthalpy_plot = plot(
         z, enthalpies,
@@ -91,7 +79,7 @@ n_nodes = 20
     )
 
     pressure_plot = plot(
-        z, p/1e3,
+        z, p,
         title = L"P", 
         label = nothing,
         marker = 1,
@@ -122,9 +110,7 @@ plots = [
         vline!(plot,  [Lh], color=:black, label=nothing)
     end
 
-    using DelimitedFiles
-
-    cd(database_path * scenario)
+    cd(root * "\\data\\" * scenario)
     (z_α, α_ref) = eachcol(readdlm("alpha.csv", ','))
     (z_T, T_ref) = eachcol(readdlm("T.csv", ','))
     (z_p, p_ref) = eachcol(readdlm("P.csv", ','))
@@ -133,9 +119,9 @@ plots = [
     z_T = z_T*Dh
     z_p = z_p*Dh
 
-    plot!(void_plot,        z_α, α_ref, label = nothing)
-    plot!(temperature_plot, z_T, T_ref, label = nothing)
-    plot!(pressure_plot,    z_p, p_ref, label = nothing)
+    scatter!(void_plot,        z_α, α_ref, label = "ref", marker=:star5)#, markersize=2)
+    scatter!(temperature_plot, z_T, T_ref, label = "ref", marker=:star5)#, markersize=2)
+    scatter!(pressure_plot,    z_p, p_ref, label = "ref", marker=:star5)#, markersize=2)
 
     plot_title = "P_{\\mathrm{in}} = $(P_in/1e3) \\; \\mathrm{kPa} \\quad v_{\\mathrm{in}} = $v_in \\; \\mathrm{m/s} \\quad ΔT_{\\mathrm{sub}} = $ΔT_sub \\mathrm{ºC} \\quad q^{''} = $(q_flux/1e3) \\; \\mathrm{kW/m}^2"
     plot_title = latexstring(plot_title)

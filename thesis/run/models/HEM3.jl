@@ -14,16 +14,22 @@ nondimensional version of the equations
 and manual implementation of Newton-Raphson employing numerical jacobian
 """
 
-# function run(P_in, G, ΔT_sub, q_flux) # mass flux given
-function run(P_in, v_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
+function run(conditions, geom; n_nodes=20) # velocity given
 
-# Geometry
-    L = 2.8 + 1.7
-    d_inner = 0.0191
-    d_outer = 0.0381
+    P_in = conditions["P_in"]
+    ΔT_sub = conditions["T_sub"]
+    q_flux = conditions["q_flux"]
+    G = conditions["G"]
+
+    L = geom["L"]
+    d_inner = geom["d_inner"]
+    d_outer = geom["d_outer"]
+    Lh = geom["Lh"]/L
+    z0_heater = geom["z0_heater"]/L
+
     Dh = d_outer - d_inner
-    Lh = 2.8/L
-    z0_heater = 0.0/L
+    A = 0.25*π*(d_outer^2 - d_inner^2)
+    A_wall = π*d_inner*Lh*L
 
 # Grid
     N  = n_nodes
@@ -33,18 +39,17 @@ function run(P_in, v_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
 
 # Constants
     # Upstream conditions
-    v_half = v_in
     p_half = P_in
     T_sat = PropsSI("T", "P", p_half, "Q", 0, "Water")
     T_half = T_sat - ΔT_sub
     h_half = PropsSI("H", "P", p_half, "T", T_half, "Water")
     ρ_half = PropsSI("D", "P", p_half, "T", T_half, "Water")
+    v_half = G/ρ_half
     # True constants
-    A = 0.25*π*(d_outer^2 - d_inner^2)
     g = 9.8
     rugosity = 0
     # Heat input
-    Qh = q_flux*Lh*L*π*d_inner
+    Qh = q_flux*A_wall
     S  = zeros(N+1)    
     S[z0_heater .< z_scalar .< z0_heater + Lh] .=  1
     # Derived quantities
@@ -179,11 +184,6 @@ function run(P_in, v_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
     Lh = Lh*L
     z0_heater = z0_heater*L
 
-    T = T .- 273.15
-    h = h/1e3
-    hl_sat = hl_sat/1e3
-    p = p/1e3
-
     fields = Dict(
        "z" => z_scalar,
        "alpha" => α,
@@ -192,6 +192,7 @@ function run(P_in, v_in, ΔT_sub, q_flux; n_nodes=20) # velocity given
        "h" => h,
        "hl_sat" => hl_sat,
        "p" => p,
+       "v" => v,
     )
 
 return fields

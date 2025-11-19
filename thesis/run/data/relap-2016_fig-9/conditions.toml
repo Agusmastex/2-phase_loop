@@ -1,4 +1,0 @@
-P_in = 183e3 # Pa
-v_in = 0.24 # m/s
-T_sub = 18 # ºC
-q_flux = 61e3 # W/m2

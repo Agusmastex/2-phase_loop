@@ -3,19 +3,12 @@ using Plots
 using LaTeXStrings
 using TOML
 
-models = [
-    # "HEM3",
-    "HFM4SZ",
-    ]
-databases = [
-    "relap-2016",
-    ]
+root = "C:\\Users\\mateo\\Files\\Investigación\\2-phase_loop\\thesis\\run"
 
-for model_name in models
-    include("models\\" * model_name * ".jl")
+for model_name in readdir(root * "\\models")
+    include("models\\" * model_name)
 end
 
-root = "C:\\Users\\mateo\\Files\\Investigación\\2-phase_loop\\thesis\\run"
 
 function run_model(model_name, conditions, geom, n_nodes)
     model = getfield(Main, Symbol(model_name))
@@ -27,35 +20,26 @@ function run_model(model_name, conditions, geom, n_nodes)
     [header; matrix]
 end
 
-function produce_data(models, databases, n_nodes)
-    for database in databases
-        database_folder = root * "\\data\\" * database
-        cd(database_folder)
-        for scenario in readdir()
-            cd(scenario)
+function produce_data(models, n_nodes)
+    cd(root * "\\data")
+    for scenario in readdir()
+        cd(root * "\\data\\" * scenario)
 
-            conditions = TOML.parsefile("conditions.toml")
-            geom = TOML.parsefile("geometry.toml")
+        conditions = TOML.parsefile("conditions.toml")
+        geom = TOML.parsefile("geometry.toml")
 
-            for model_name in models
-                results_path = root * "\\results\\" * "\\" * database * "\\" * scenario
-                try 
-                    cd(results_path)
-                catch
-                    mkpath(results_path)
-                    cd(results_path)
-                end
+        for model_name in models
+            results_path = root * "\\results\\"
 
-                results_name = database * "_" * model_name * "_" * scenario
-                println(results_name)
-                csv = run_model(model_name, conditions, geom, n_nodes)
-                writedlm(results_name * ".csv", csv, ',')
-                println()
-            end
-            cd(database_folder)
+            results_name = scenario * "_" * model_name
+            println(results_name)
+            csv = run_model(model_name, conditions, geom, n_nodes)
+            writedlm(results_path * results_name * ".csv", csv, ',')
             println()
         end
+        println()
     end
 end
 
-produce_data(["HFM4SZ"], ["relap-2016"], 40)
+# produce_data(["HFM4SZ", "HFM4SZ_C"], 20)
+produce_data(["HEM3"], 20)

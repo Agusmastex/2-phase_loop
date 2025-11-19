@@ -18,9 +18,9 @@ and manual implementation of Newton-Raphson employing numerical jacobian
 
 function run(conditions, geom; n_nodes=20) # velocity given
     P_in = conditions["P_in"]
-    v_in = conditions["v_in"]
     ΔT_sub = conditions["T_sub"]
     q_flux = conditions["q_flux"]
+    G = conditions["G"]
 
     L = geom["L"]
     d_inner = geom["d_inner"]
@@ -40,13 +40,13 @@ function run(conditions, geom; n_nodes=20) # velocity given
 
 # Constants
     # Upstream conditions
-    v_half = v_in
     p_half = P_in
     α_half = 0
     T_sat = PropsSI("T", "P", p_half, "Q", 0, "Water")
     T_half = T_sat - ΔT_sub
     h_half = PropsSI("H", "P", p_half, "T", T_half, "Water")
     ρ_half = PropsSI("D", "P", p_half, "T", T_half, "Water")
+    v_half = G/ρ_half
     ρg0 = PropsSI("D", "P", p_half, "Q", 1, "Water")
     ρl = ρ_half
     
@@ -257,6 +257,7 @@ function run(conditions, geom; n_nodes=20) # velocity given
        "p" => p,
        "Pe" => Pe,
        "Gamma" => Γw,
+       "v" => v
     )
 
 return fields
