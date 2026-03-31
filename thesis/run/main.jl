@@ -42,4 +42,3 @@ function produce_data(models, n_nodes)
 end
 
 # produce_data(["HFM4SZ", "HFM4SZ_C"], 20)
-produce_data(["HEM3"], 20)

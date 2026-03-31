@@ -6,7 +6,7 @@ using CoolProp
 using Plots
 
 """ 
-Name stands for Homogeneous Flow Model (4-eq) Simple Gamma
+Name stands for Homogeneous Flow Model (4-eq)
 Solves the 2-phase steady state 1D vertical flow with constant upstream boundary conditions
 using the 4-equation Homogeneous Flow Model (HFM)
 the Saha-Zuber correlation for critical enthalpy of the point of Net Vapor Generation
